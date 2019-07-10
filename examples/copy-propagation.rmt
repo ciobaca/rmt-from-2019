@@ -110,7 +110,7 @@ define substitute : Var Exp Exp -> Exp by
   (substitute (var X) EXP1 (miu (var Y) EXP)) /\ (bnot (mequals X Y)) => (miu (var Y) (substitute (var X) EXP1 EXP))
   ;
 
-constrained-rewrite-system fun1
+constrained-rewrite-system IMP
 
   (P (push (var X) REST) ENV) => (P (push (lookup ENV X) REST) ENV),
 
@@ -182,7 +182,7 @@ satisfiability (band
 !EOF!
 */
 
-show-simulation [200, total] in fun1 and fun1 :
+show-simulation [200, total] in IMP and IMP :
 
 (pair
 

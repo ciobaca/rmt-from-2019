@@ -49,6 +49,8 @@ Z3_ast z3_make_constant(Variable *variable)
 Z3_ast z3_simplify(Term *term)
 {
   Z3_ast toSimplify = term->toSmt();
+  /* This must be commented out due to a bug in Z3 */
+  /*
   if (term->getSort() == getBoolSort()) {
     Z3_goal goal = Z3_mk_goal(z3context, false, false, false);
     Z3_goal_inc_ref(z3context, goal);
@@ -73,6 +75,7 @@ Z3_ast z3_simplify(Term *term)
     Z3_goal_dec_ref(z3context, goal);
     Z3_apply_result_dec_ref(z3context, res);
   }
+  */
   return Z3_simplify_ex(z3context, toSimplify, simplifyParams);
 }
 

@@ -130,7 +130,7 @@ define substitute : Var Exp Exp -> Exp by
   ;  
 
 
-constrained-rewrite-system fun1
+constrained-rewrite-system IMP
 
   (P (push (var X) REST) ENV) => (P (push (lookup ENV X) REST) ENV),
 
@@ -212,7 +212,7 @@ constrained-rewrite-system fun1
   (P (push B1 REST) ENV) => (P (push (iB1 (lookup ENV /*C*/6) (lookup ENV /*V*/2)) REST) ENV)
 ;
 
-show-simulation useDFS [300, total] in fun1 and fun1 :
+show-simulation useDFS [300, total] in IMP and IMP :
 
 (pair
 
