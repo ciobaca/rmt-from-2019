@@ -1,0 +1,52 @@
+/*
+
+  Simple example which simulates the addition of two numbers in linear
+  time. Consider the following rewrite rules:
+
+  (loop x, y) /\ ~ (y <= 0) => (loop x + 1, y - 1),
+  (loop x, y) /\ y <= 0 => (done x);
+
+  We prove the total correctness specification:
+
+  (loop x, y) /\ ~ (y <= 0) => (done x + y);
+
+  We (automatically) prove that the final state is reached in at most y + 2 steps.
+
+*/
+sorts State, nState;
+
+signature
+  init:Int Int->State, loop:Int Int->State, done:Int->State,
+  protect:State Int->nState;
+
+variables B:Bool, S:Int, N:Int, I:Int, x:Int, y:Int, VN:Int, VI:Int, REZ:Int;
+
+/*** Rewrite Rules ***/
+constrained-rewrite-system sum
+  (loop x y) /\ (bnot (mle y 0)) => (loop (mplus x 1) (mminus y 1)),
+  (loop x y) /\ (mle y 0) => (done x);
+
+/*** Proof Obligation ***/
+constrained-rewrite-system circularities
+  (loop x y) /\ (bnot (mle y 0)) => (done (mplus x y));
+
+// the following command would prove the obligations (in the sense of
+// partial correctness)
+// prove in sum : circularities;
+
+// the following commands transform
+// 1. the initial rewrite system "sum" generating "sum_protected" and
+instrument sum sum_protected State nState protect;
+
+// 2. the proof obligations "circularities" generating "circularities_protected"
+// note the upper bound "y + 2" ((mplus y,2))
+// "State" and "nState" denote the sorts of the old configuration and resp. new configuration
+cinstrument circularities circularities_protected State nState protect (mplus y,2);
+
+// the following proves the partial correctness of the proof obligations
+// "circularities_protected" in the rewrite system "sum_protected"
+prove in sum_protected : circularities_protected;
+
+// the proof suceeds (the output is "... Circularity #1 proved.")
+
+// by the soundness theorem it means that "circularities" is totally correct w.r.t. to "sum"

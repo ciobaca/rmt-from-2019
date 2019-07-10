@@ -1,0 +1,42 @@
+/*
+This is the running example in the RMT paper submission.
+
+It contains a rewrite system that computes the sub of the first
+N positive natural numbers.
+
+Run this example with
+
+./main -v 0 < example2.rmt
+
+The output should be:
+
+1 solutions.
+Solution #1:
+loop(mplus(S,mtwo),mminus(mtwo,mone)) if mle(mone,mtwo)
+
+This example is identical to example1.rmt, but with a different query.
+*/
+
+sorts State;
+
+signature
+  init:Int->State, loop:Int Int->State, done:Int->State;
+
+variables B:Bool, S:Int, N:Int, I:Int;
+
+constrained-rewrite-system sum
+
+  (init N) => (loop 0 N),
+
+  (loop S N) /\ (mle 1 N) => (loop (mplus S N) (mminus N 1)),
+
+  (loop S N) /\ (bnot (mle 1 N)) => (done S);
+
+/*
+This example illustrates a search query starting from a different
+term. Note that this time only the second rewrite rule in "sum" can be
+applied, since the constraint in the third rule is unsatisfiable when
+N = mtwo. The tool tests unsatisfiability by using the Z3 SMT solver
+and it will only print solutions which are feasible.
+*/
+search in sum : (loop S 2);

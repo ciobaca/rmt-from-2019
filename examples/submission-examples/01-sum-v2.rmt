@@ -1,0 +1,68 @@
+/*
+
+This is an example accompanying the RMT paper submission.
+
+The example proves the formal correctness of a rewrite system
+computing 1 + 2 + ... + N.
+
+The example comes as 5 files and this is the second one.
+
+We have a rewrite system that computes the sum of the first N positive
+natural numbers.
+
+This second file explains how the "search" query works when given
+another initial term: it computes the successors of the constrained
+term w.r.t. the rewrite system above.
+
+Run this example with
+
+./rmt -v 0 < 01-sum-v2.rmt
+
+The output should be:
+
+1 solutions.
+Solution #1:
+loop(mplus(S,mtwo),mminus(mtwo,mone)) if mle(mone,mtwo)
+
+This example is identical to 01-example-sum-v1.rmt.
+
+*/
+
+sorts Int/"Int", Bool/"Bool", State;
+// subsort Int < State;
+
+signature mzero:->Int/"0", mone:->Int/"1", mtwo:->Int/"2",
+  mplus:Int Int->Int/"+", mminus:Int Int->Int/"-",
+  mtimes:Int Int->Int/"*", mdiv:Int Int->Int/"div",
+  mle:Int Int->Bool/"<=", mequals:Int Int->Bool/"=",
+
+  bequals:Bool Bool->Bool/"=", band:Bool Bool->Bool/"and",
+  bimplies:Bool Bool->Bool/"=>", bor:Bool Bool->Bool/"or",
+  bnot:Bool->Bool/"not", true:->Bool/"true", false:->Bool/"false",
+
+  init:Int->State, loop:Int Int->State, done:Int->State;
+
+variables B:Bool, S:Int, N:Int, I:Int;
+
+rewrite-system simplifications
+  bnot(false)=>true, bnot(true)=>false, bnot(bnot(B))=>B,
+  band(false, B)=>false, band(true, B)=>B, band(B, false)=>false,
+  band(B, true)=>B, bimplies(true, B)=>B, bimplies(false, B)=>true,
+  bor(false, B)=>B, bor(true, B)=>true, bor(B, false)=>B,
+  bor(B, true)=>true, mequals(N, N)=>true, bequals(B, B)=>true,
+  bequals(true, B)=>B,bequals(false, B)=>bnot(B), bequals(B, true)=>B,
+  bequals(B, false)=>bnot(B), band(B, B)=>B, bor(B, B)=>B;
+
+constrained-rewrite-system sum
+  init(N) => loop(mzero, N),
+  loop(S, N) /\ mle(mone, N) => loop(mplus(S, N), mminus(N, mone)),
+  loop(S, N) /\ bnot(mle(mone, N)) => done(S);
+
+/*
+This example illustrates a search query starting from a different
+term. Note that this time only the second rewrite rule in "sum" can be
+applied, since the constraint in the third rule is unsatisfiable when
+N = mtwo. The tool tests unsatisfiability by using the Z3 SMT solver
+and it will only print solutions which are feasible.
+*/
+search in sum : loop(S, mtwo);

@@ -1,0 +1,175 @@
+/* any file begins with the declaration of all sorts used */
+smt-prelude
+"(declare-fun uifun (Int Int) Int)
+ (declare-datatypes () ((VarF fvarX fvarY fvarZ)))
+"
+
+sorts 
+//      IntP,
+//      BoolP,
+      VarF / "VarF",
+      ExpF,
+      NonValExpF,
+      ValExpF,
+      CfgF
+    ;
+
+// after declaring all sorts,
+// we must declare all subsort relations
+//subsort Int < IntP;
+//subsort IntP < AExp;
+//subsort Var < NonValAExp;
+//subsort NonValAExp < AExp;
+//subsort NonValBExp < BExp;
+//subsort AExp BExp Stmt < Code;
+//subsort Bool < BoolP;
+//subsort BoolP < BExp;
+//subsort AExp < Stmt;
+//subsort BExp < Stmt;
+
+subsort Bool < ValExpF;
+subsort Int < ValExpF;
+subsort VarF < ExpF;
+subsort ValExpF < ExpF;
+subsort NonValExpF < ExpF;
+
+/* next we must declare all function symbols */
+signature
+	// interpreted integers and booleans
+	0 : -> Int / "0",
+	1 : -> Int / "1",
+	2 : -> Int / "2",
+	mplus : Int Int -> Int / "+",
+	mminus : Int Int -> Int / "-",
+	mtimes : Int Int -> Int / "*",
+	mdiv : Int Int -> Int / "div",
+	mle : Int Int -> Bool / "<=",
+	mless : Int Int -> Bool / "<",
+	mequals : Int Int -> Bool / "=",
+
+	bequals : Bool Bool -> Bool / "=",
+	band : Bool Bool -> Bool / "and",
+	bimplies : Bool Bool -> Bool / "=>",
+	bor : Bool Bool -> Bool / "or",
+	bnot : Bool -> Bool / "not",
+
+	true : -> Bool / "true",
+	false : -> Bool / "false",
+
+	vfequals : VarF VarF -> Bool / "=",
+
+	// functional language
+	miu : VarF ExpF -> ValExpF,
+	lam : VarF ExpF -> ValExpF,
+
+	fplus : ExpF ExpF -> NonValExpF,
+	fminus : ExpF ExpF -> NonValExpF,
+	fle : ExpF ExpF -> NonValExpF,
+	fless : ExpF ExpF -> NonValExpF,
+	fite : ExpF ExpF ExpF -> NonValExpF,
+
+	app : ExpF ExpF -> NonValExpF,
+
+	F : ExpF -> CfgF,
+
+	contextexp : ValExpF -> ValExpF,
+	contextexp : NonValExpF -> NonValExpF,
+
+	fvarX : -> VarF / "fvarX",
+	fvarY : -> VarF / "fvarY",
+	fvarZ : -> VarF / "fvarZ",
+	substitute : VarF ExpF ExpF -> ExpF / defined;
+
+/* next we must declare all variables */
+variables
+	B : Bool,
+	N : Int,
+	I : Int,
+	J : Int,
+	XF : VarF,
+	FEXP : ExpF,
+	FEXP1 : ExpF,
+	FEXP2 : ExpF,
+	FEXP3 : ExpF,
+	FNV : NonValExpF,
+	VF : ValExpF;
+
+rewrite-system functions
+  (substitute XF VF I) => I,
+  (substitute XF VF B) => B,
+  (substitute XF FEXP XF) => FEXP,
+  (substitute fvarX FEXP fvarY) => fvarY,
+  (substitute fvarX FEXP fvarZ) => fvarZ,
+  (substitute fvarY FEXP fvarX) => fvarX,
+  (substitute fvarY FEXP fvarZ) => fvarZ,
+  (substitute fvarZ FEXP fvarY) => fvarY,
+  (substitute fvarZ FEXP fvarZ) => fvarZ,
+  (substitute XF VF (fplus FEXP1 FEXP2)) => (fplus (substitute XF VF FEXP1) (substitute XF VF FEXP2)),
+  (substitute XF VF (fminus FEXP1 FEXP2)) => (fminus (substitute XF VF FEXP1) (substitute XF VF FEXP2)),
+  (substitute XF VF (fless FEXP1 FEXP2)) => (fless (substitute XF VF FEXP1) (substitute XF VF FEXP2)),
+  (substitute XF VF (fle FEXP1 FEXP2)) => (fle (substitute XF VF FEXP1) (substitute XF VF FEXP2)),
+  (substitute XF VF (fite FEXP1 FEXP2 FEXP3)) => (fite (substitute XF VF FEXP1) (substitute XF VF FEXP2) (substitute XF VF FEXP3)),
+
+  (substitute XF VF (app FEXP1 FEXP2)) => (app (substitute XF VF FEXP1) (substitute XF VF FEXP2)),
+
+(substitute fvarX VF (lam fvarY FEXP)) => (lam fvarY (substitute fvarX VF FEXP)),
+  (substitute fvarX VF (lam fvarZ FEXP)) => (lam fvarZ (substitute fvarX VF FEXP)),
+  (substitute fvarY VF (lam fvarX FEXP)) => (lam fvarX (substitute fvarY VF FEXP)),
+  (substitute fvarY VF (lam fvarZ FEXP)) => (lam fvarZ (substitute fvarY VF FEXP)),
+  (substitute fvarZ VF (lam fvarX FEXP)) => (lam fvarX (substitute fvarZ VF FEXP)),
+  (substitute fvarZ VF (lam fvarY FEXP)) => (lam fvarY (substitute fvarZ VF FEXP)),
+  (substitute XF VF (lam XF FEXP)) => (lam XF FEXP),
+
+  (substitute fvarX VF (miu fvarY FEXP)) => (miu fvarY (substitute fvarX VF FEXP)),
+  (substitute fvarX VF (miu fvarZ FEXP)) => (miu fvarZ (substitute fvarX VF FEXP)),
+  (substitute fvarY VF (miu fvarX FEXP)) => (miu fvarX (substitute fvarY VF FEXP)),
+  (substitute fvarY VF (miu fvarZ FEXP)) => (miu fvarZ (substitute fvarY VF FEXP)),
+  (substitute fvarZ VF (miu fvarX FEXP)) => (miu fvarX (substitute fvarZ VF FEXP)),
+  (substitute fvarZ VF (miu fvarY FEXP)) => (miu fvarY (substitute fvarZ VF FEXP)),
+  (substitute XF VF (miu XF FEXP)) => (miu XF FEXP);
+
+constrained-rewrite-system flanguage
+	(contextexp (fplus FNV FEXP)) => (fplus (contextexp FNV) FEXP),
+	(fplus (contextexp I) FEXP) => (contextexp (fplus I FEXP)),
+	(contextexp (fplus I FNV)) => (fplus I (contextexp FNV)),
+	(fplus I (contextexp J)) => (contextexp (fplus I J)),
+	(contextexp (fplus I J)) => (mplus I J),
+
+	(contextexp (fminus FNV FEXP)) => (fminus (contextexp FNV) FEXP),
+	(fminus (contextexp I) FEXP) => (contextexp (fminus I FEXP)),
+	(contextexp (fminus I FNV)) => (fminus I (contextexp FNV)),
+	(fminus I (contextexp J)) => (contextexp (fminus I J)),
+	(contextexp (fminus I J)) => (mminus I J),
+	
+	(contextexp (fless FNV FEXP)) => (fless (contextexp FNV) FEXP),
+	(fless (contextexp I) FEXP) => (contextexp (fless I FEXP)),
+	(contextexp (fless I FNV)) => (fless I (contextexp FNV)),
+	(fless I (contextexp J)) => (contextexp (fless I J)),
+	(contextexp (fless I J)) => (mless I J),
+	
+	(contextexp (fless FNV FEXP)) => (fless (contextexp FNV) FEXP),
+	(fless (contextexp I) FEXP) => (contextexp (fless I FEXP)),
+	(contextexp (fless I FNV)) => (fless I (contextexp FNV)),
+	(fless I (contextexp J)) => (contextexp (fless I J)),
+	(contextexp (fless I J)) => (mless I J),
+
+	(contextexp (fite FNV FEXP1 FEXP2)) => (fite (contextexp FNV) FEXP1 FEXP2),
+	(fite (contextexp B) FEXP1 FEXP2) => (contextexp (fite B FEXP1 FEXP2)),
+	(contextexp (fite true FEXP1 FEXP2)) => (contextexp FEXP1),
+	(contextexp (fite false FEXP1 FEXP2)) => (contextexp FEXP2),
+
+	(contextexp (app FNV FEXP)) => (app (contextexp FNV) FEXP),
+	(app (contextexp (lam XF FEXP1)) FEXP2) => (contextexp (app (lam XF FEXP1) FEXP2)),
+	(contextexp (app (lam XF FEXP1) FNV)) => (app (lam XF FEXP1) (contextexp FNV)),
+	(app (lam XF FEXP1) (contextexp VF)) => (contextexp (app (lam XF FEXP1) VF)),
+	(contextexp (app (lam XF FEXP1) VF)) => (contextexp (substitute XF VF FEXP1))
+;
+
+constrained-rewrite-system circularities
+        (contextexp (app (lam fvarX (app (lam fvarX fvarX) fvarX)) (lam fvarY fvarY))) =>
+	(contextexp (app (lam fvarX fvarX) (lam fvarY fvarY)))	
+;
+
+//search [4,4] in flanguage : (contextexp (app (lam fvarX (app (lam fvarX fvarX) fvarX)) (lam fvarY fvarY)));
+
+prove in flanguage : circularities;

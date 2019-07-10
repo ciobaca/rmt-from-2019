@@ -1,0 +1,59 @@
+/*
+This is the running example in the RMT paper submission.
+
+It contains a rewrite system that computes the sub of the first
+N positive natural numbers.
+
+Run this example with
+
+./main -v 0 < example3.rmt
+
+The output should be:
+
+4 solutions.
+Solution #1:
+loop(mplus(S,N),mminus(N,mone)) if mle(mone,N)
+Solution #2:
+loop(mplus(mplus(S,N),mminus(N,mone)),mminus(mminus(N,mone),mone)) if band(mle(mone,N),mle(mone,mminus(N,mone)))
+Solution #3:
+done(mplus(S,N)) if band(mle(mone,N),bnot(mle(mone,mminus(N,mone))))
+Solution #4:
+done(S) if bnot(mle(mone,N))
+This example is identical to example1.rmt and example2.rmt, but with a
+different query. The example illustrates the optional arguments to the
+"search" query.
+*/
+
+sorts State;
+
+signature
+  init:Int->State, loop:Int Int->State, done:Int->State;
+
+variables B:Bool, S:Int, N:Int, I:Int;
+
+constrained-rewrite-system sum
+
+  (init N) => (loop 0 N),
+
+  (loop S N) /\ (mle 1 N) => (loop (mplus S N) (mminus N 1)),
+
+  (loop S N) /\ (bnot (mle 1 N)) => (done S);
+
+/*
+This example illustrates a search of terms reachable from loop(S, N)
+in any number of steps between 1 and 2. This will yield four
+solutions, depending on which rules apply.
+
+Please go ahead and experiment with various parameters. Try the
+following queries:
+
+search [0,0] in sum : loop(S, N);
+search [0,3] in sum : loop(S, N);
+search [3,3] in sum : loop(S, N);
+
+You can also specify an initial constraint. Try the following query:
+
+search [1,1] in sum : loop(S, N) /\ mle(mone, N);
+*/
+search [1,2] in sum :
+  (loop S N);

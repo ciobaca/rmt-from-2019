@@ -1,0 +1,84 @@
+/*
+
+  Simple example which simulates the addition of two numbers in linear
+  time. This is a variant of Example 1.1. Consider the following
+  rewrite rules:
+
+  (loop x, y) /\ ~ (y = 0) => (loop x + 1, y - 1),
+  (loop x, y) /\ y = 0 => (done x);
+
+  We prove the total correctness specification:
+
+  (C1) (loop x, y) /\ ~ (y <= 0) => (done x + y);
+
+  We also show that the following specification
+  
+  (C2) (loop x, y) => (done x + y)
+
+  is correct in the sense of partial correctness but fails in the sense of total correctness.
+
+  As there are "4" proof commands, which generate lots of output, we recommend to use the command line:
+
+  > rmt[.exe] < 1.3_addition_variant.rmt 2>&1 | grep "Circularity #"
+
+With the following expected output:
+
+Circularity #1 proved. // C1 holds in the sense of partial correctness 
+Circularity #1 proved. // C2 holds in the sense of partial correctness
+Circularity #1 proved. // C1 holds in the sense of total correctness
+Circularity #1 not proved. The following proof obligations failed: // C2 fails to be shown to hold in the sense of total correctness
+
+*/
+sorts State, nState;
+
+signature
+  init:Int Int->State, loop:Int Int->State, done:Int->State,
+  protect:State Int->nState;
+
+variables B:Bool, S:Int, N:Int, I:Int, x:Int, y:Int, VN:Int, VI:Int, REZ:Int;
+
+/*** Rewrite Rules ***/
+constrained-rewrite-system sum
+  (loop x y) /\ (bnot (mequals y 0)) => (loop (mplus x 1) (mminus y 1)),
+  (loop x y) /\ (mequals y 0) => (done x);
+
+/*** Proof Obligation 1 (holds both in the sense of partial correctness and total correctness) ***/
+constrained-rewrite-system circularities1
+  (loop x y) /\ (bnot (mle y 0)) => (done (mplus x y));
+
+/*** Proof Obligation 2 (holds only in the sense of partial correctness not total correctness) ***/
+constrained-rewrite-system circularities2
+  (loop x y) => (done (mplus x y));
+
+// the following commands prove that both "circularities1" and "circularities2" hold
+// in the sense of partial correctness
+
+prove in sum : circularities1;
+// succeeds
+
+prove in sum : circularities2;
+// succeeds
+
+// the following commands transform
+// 1. the initial rewrite system "sum" generating "sum_protected" and
+instrument sum sum_protected State nState protect;
+
+// 2. the proof obligations "circularitiesN" generating "circularitiesN_protected"
+// note the upper bound "y + 2" ((mplus y,2))
+// "State" and "nState" denote the sorts of the old configuration and resp. new configuration
+cinstrument circularities1 circularities1_protected State nState protect (mplus y 2);
+
+cinstrument circularities2 circularities2_protected State nState protect (mplus y 2);
+
+// the following proves the partial correctness of the proof obligations
+// "circularities1_protected" in the rewrite system "sum_protected"
+prove in sum_protected : circularities1_protected;
+
+// the proof suceeds (the output is "... Circularity #1 proved.")
+// by the soundness theorem it means that "circularities1" is totally correct w.r.t. to "sum"
+
+// the following tries to prove the partial correctness of the proof obligations
+// "circularities2_protected" in the rewrite system "sum_protected"
+prove in sum_protected : circularities2_protected;
+
+// the proof fails as expected

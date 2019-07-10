@@ -1,0 +1,51 @@
+smt-prelude "(define-fun samedivs ((x Int) (y Int) (u Int) (v Int)) Bool
+   (forall ((d Int))
+     (iff (and (= 0 (mod x d)) (= 0 (mod y d)))
+          (and (= 0 (mod u d)) (= 0 (mod v d)))))
+)
+(define-fun isdivisor ((d Int) (x Int) (y Int)) Bool
+  (and
+     (= 0 (mod x d))
+     (= 0 (mod y d)))
+)
+(define-fun isgcd ((d Int) (x Int) (y Int)) Bool
+  (and (isdivisor d x y)
+       (forall ((e Int)) (=> (isdivisor e x y) (<= e d))))
+)
+(assert (forall ((X Int)) (= 0 (mod 0 X))))
+(assert (forall ((X Int) (Y Int)) (=> (not (= Y 0)) (samedivs X Y Y (mod X Y)))))"
+
+sorts State;
+// subsort Int < State;
+
+signature
+  mgcd : Int Int -> Int / "gcd",
+  mmod : Int Int -> Int / "mod",
+
+  samedivs : Int Int Int Int -> Bool / "samedivs",
+  isgcd : Int Int Int -> Bool / "isgcd",
+
+  init : Int Int -> State, loop : Int Int Int Int -> State, done : Int Int Int -> State,
+  ok : Int Int -> State;
+
+variables S : Int, N : Int, I : Int, J : Int, X : Int, Y : Int, Z : Int, A : Int, B : Int,
+ C : Int, D : Int, BB : Bool;
+
+constrained-rewrite-system gcd
+  (init X Y) => (loop X Y X Y),
+
+  (loop I J X Y) /\ (bnot (mequals Y 0)) =>
+  (loop I J Y (mmod X Y)),
+
+  (loop I J X Y) /\ (mequals Y 0) =>
+  (done I J X),
+
+  (done I J X) /\ (isgcd X I J) => (ok I J);
+
+constrained-rewrite-system circ
+  (init X Y) /\ (band (mle 0 Y) (mle 0 X)) => (ok X Y),//(done (mgcd X Y)),
+
+  (loop X Y I J) /\
+  (band (band (samedivs X Y I J) (mle 0 I)) (mle 0 J)) => (ok X Y);//(done (mgcd X Y));
+
+prove [2,2] in gcd : circ;

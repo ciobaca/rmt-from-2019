@@ -1,0 +1,72 @@
+sorts State;
+
+signature
+  e : -> State,
+  f : State State -> State [ a c u(e)],
+  ff : State State -> State [ a c u(e)],
+  g : State State -> State,
+  tt : State State State -> State,
+  tg : State -> State,
+  c : -> State,
+  a : -> State;
+
+variables 
+  Z : State,
+  X : State, X1 : State, X2 : State, X3 : State, X4 : State, X5 : State, X6 : State,
+  Y : State, Y1 : State, Y2 : State, Y3 : State, Y4 : State, Y5 : State;
+
+//c-unify (f X Y) (f Y (f Z Y));
+//c-unify (g X Y) (g Y (f Z Y));
+//c-unify (f (f X Z) (f Z Y)) (f Y (f Z Y));
+//c-unify (g (g X Z) (g Z Y)) (g Y (g Z Y));
+acu-unify (f X (f X X)) (f Y (f Z Z));
+acu-unify (f X1 X2) (f X3 X4);
+acu-unify (f X1 X2) (f X1 (f X2 X1));
+ac-unify (f X1 X2) (f X3 X4);
+ac-unify (f X3 X4) (f X1 X2);
+ac-unify (f (f X1 X1) (f X2 X3)) (f (f Y1 Y1) Y2);
+acc-unify (f X1 X2) (f X3 c);
+acc-unify (f (f X1 X1) (f X2 a)) (f (f c c) Y1);
+acs-unify (f X1 (f X2 X3)) (f X4 (f X5 X6));
+
+ac-unify (f (f X Y) Z) (f Z (f X Y));
+acs-unify (f (f X Y) Z) (f Z (f X Y));
+//unify (f (f X Y) Z) (f Z (f X Y));
+n*unify (f (f X Y) Z) (f Z (f X Y));
+pat-weg-unify (f (f X Y) Z) (f Z (f X Y));
+
+ac-unify (f X Y) (f Y X);
+acs-unify (f X Y) (f Y X);
+//unify (f X Y) (f Y X);
+n*unify (f X Y) (f Y X);
+pat-weg-unify (f X Y) (f Y X);
+
+acs-unify (f X Y) (f Y (f Z Y));
+acc-unify (f X Y) (f Y (f Z Y));
+ac-unify (f X Y) (f Y (f Z Y));
+//unify (f X Y) (f Y (f Z Y));
+n*unify (f X Y) (f Y (f Z Y));
+pat-weg-unify (f X Y) (f Y (f Z Y));
+
+acs-unify (f X X1) (f Y Y1);
+ac-unify (f X X1) (f Y Y1);
+//unify (f X X1) (f Y Y1);
+n*unify (f X X1) (f Y Y1);
+pat-weg-unify (f X X1) (f Y Y1);
+
+ac-unify (tt X X X) (tt (tg (tg a)) (tg (tg Z)) (tg Y));
+//unify (tt X X X) (tt (tg (tg a)) (tg (tg Z)) (tg Y));
+n*unify (tt X X X) (tt (tg (tg a)) (tg (tg Z)) (tg Y));
+pat-weg-unify (tt X X X) (tt (tg (tg a)) (tg (tg Z)) (tg Y));
+
+ac-unify (tg X) (tg Y);
+//unify (tg X) (tg Y);
+n*unify (tg X) (tg Y);
+pat-weg-unify (tg X) (tg Y);
+
+ac-unify (f X Y) (g a c);
+ac-unify (f X Y) (f a c);
+ac-unify (f X Y) (f (ff a c) Z);
+ac-unify (f X (f X X)) (f X X);
+acu-unify (f X (f X X)) (f X X);
+ac-unify (g X X) (g c (tg Y));

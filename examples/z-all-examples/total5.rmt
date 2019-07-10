@@ -1,0 +1,35 @@
+/* example for sum in n^2 */
+sorts State, nState, Nat;
+
+signature
+  mhundred:->Int/"100",
+  a:Nat->State, b:Nat Nat->State, c:Nat Nat Nat->State, d:Nat->State,
+  s:Int->Nat,
+  protect:State Int->nState;
+
+variables B:Bool, N:Int, M:Int, X:Int, Z:Int, m:Nat, n:Nat, x:Nat, y:Nat;
+
+constrained-rewrite-system sum
+  (a n) => (b n  (s 0)),
+  (b n  x) => (c n  n  x),
+  (c m  (s N)  (s X)) /\ (band (mle 1 N) (mle 0 X)) => (c m  (s (mminus N 1))  (s (mplus X 1))),
+  (c (s M)  (s 0)  x) /\ (mle 1 M) => (c (s (mminus M 1))  (s (mminus M 1))  x),
+  (c (s 0)  (s 0)  x) => (d x);
+
+constrained-rewrite-system circ1
+  (a n) => (d x),
+  (c n m x) => (d y);
+
+constrained-rewrite-system circ2
+  (a (s N)) /\ (mle 0 N) => (d (s (mdiv (mtimes N (mplus N 1)) 2))),
+  (c (s N)  (s M)  (s X)) /\ (band (mle 0 N) (band (mle 0 M) (mle 0 X))) => (d (s (mplus (mplus M X) (mdiv (mtimes N (mminus N 1)) 2))));
+
+//prove in sum  : circ2;
+
+instrument sum sum_protected State nState protect;
+/*
+* prove on this system will not work because variant is O(N):
+* cinstrument circ2 circ2_p State nState protect (mplus (mplus N,N),(mplus N,(mplus mhundred, mhundred))) (mplus (mplus N,M),(mplus N,mhundred));
+*/
+cinstrument circ2 circ2_p State nState protect (mplus mhundred,(mplus mhundred,(mplus N,(mtimes (mtimes N,N),mthree)))) (mplus mhundred,(mplus M,(mtimes (mtimes N,N),mthree)));
+prove in sum_protected : circ2_p;

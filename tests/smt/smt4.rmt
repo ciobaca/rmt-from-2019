@@ -1,0 +1,5 @@
+sorts State;
+signature init : -> State;
+variables N : Int, B : Bool;
+
+simplification (band true B);

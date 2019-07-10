@@ -1,0 +1,125 @@
+sorts State;
+
+signature
+  init:Int->State, loop:Int Int->State, done:Int->State;
+
+variables B:Bool, S:Int, N:Int, I:Int, SP:Int, NP:Int, IP:Int;
+
+constrained-rewrite-system sum
+
+  (init N) => (loop 0 N),
+
+  (loop S N) /\ (mle 1 N) => (loop (mplus S N) (mminus N 1)),
+
+  (loop S N) /\ (bnot (mle 1 N)) => (done S);
+
+/*
+
+To prove a set of reachability properties (we call them circularities
+because of they way we prove them), we have to place them in a
+constrained rewrite system.
+
+In our case, we are interested in proving that
+
+  init(N) /\ mle(mzero,N) => done(mdiv(mtimes(N,mplus(N,mone)),mtwo)),
+
+which essentially states that init(N) computes the sum of the first N
+positive naturals, provided N is non-negative.
+
+Unfortunately the system cannot establish this without a little bit of
+help from us. We have to specify an auxiliary circularity, just like
+we have to specify invariants for while loops when proving
+programs. Our circularity describes the repetitive behaviour of the
+rewrite system:
+
+  loop(S,I) /\ mle(mzero,I) => done(mplus(S,mdiv(mtimes(I,mplus(I,mone)),mtwo)));
+
+But don't worry: there is no need to trust this auxiliary
+circularity. The RMT system will establish that both circularities
+hold. They are called circularities because of how they are used to
+prove themselves. Take a look at the .pdf article in order to
+understand better how circularities are used.
+
+We note here just that the first circularity is proved by the help of
+the second one. What is more interesting is that the second
+circularity is proved with the help of itself. This use of
+circularities is sound for terminating terms, as we have explained in
+the article.
+
+*/
+
+constrained-rewrite-system circularities
+  (init N) /\ (mle 0 N) =>
+  (done (mdiv (mtimes N (mplus N 1)) 2)),
+
+  (loop S I) /\ (mle 0 I) =>
+  (done (mplus S (mdiv (mtimes I (mplus I 1)) 2)));
+
+/*
+
+Now that we have set up the rewrite system with circularities, we can
+issue the "prove" command. The prove command will (try to) prove that
+all rewrite rules in "circularities" are sound with respect to the
+rules in "sum". The soundness holds for terminating paths starting
+with the terms on the left-hand side. RMT does not establish
+termination -- you would need another tool, like CTRL, for that.
+
+*/
+der in sum : (init N) /\ (mle 0 N) => (done (mdiv (mtimes N (mplus N 1)) 2));
+
+/*
+Success: 1 solutions.
+Solution #1:
+(loop 0 N) /\ (mle 0 N) => (done (mdiv (mtimes N (mplus N 1)) 2)) /\ true
+*/
+
+der in sum : (loop 0 N) /\ (mle 0 N) => (done (mdiv (mtimes N (mplus N 1)) 2)) /\ true;
+
+/*
+
+Success: 2 solutions.
+Solution #1:
+(loop (mplus 0 N) (mminus N 1)) /\ (band (mle 0 N) (mle 1 N)) => (done (mdiv (mtimes N (mplus N 1)) 2)) /\ true
+Solution #2:
+(done 0) /\ (band (mle 0 N) (bnot (mle 1 N))) => (done (mdiv (mtimes N (mplus N 1)) 2)) /\ true
+
+*/
+
+subs in sum : (done 0) /\ (band (mle 0 N) (bnot (mle 1 N))) => (done (mdiv (mtimes N (mplus N 1)) 2)) /\ true;
+
+/*
+Solution #1:
+(done 0) /\ false => (done (mdiv (mtimes N (mplus N 1)) 2)) /\ true
+*/
+
+axiom : (done 0) /\ false => (done (mdiv (mtimes N (mplus N 1)) 2));
+
+/*
+Success: 0 solutions.
+*/
+
+circ (loop SP IP) /\ (mle 0 IP) => (done (mplus SP (mdiv (mtimes IP (mplus IP 1)) 2))) : 
+  (loop (mplus 0 N) (mminus N 1)) /\ (band (mle 0 N) (mle 1 N)) => (done (mdiv (mtimes N (mplus N 1)) 2));
+
+/*
+Success: 2 solutions.
+
+Solution #1:
+(loop (mplus 0 N) (mminus N 1)) /\ false => (done (mdiv (mtimes N (mplus N 1)) 2)) /\ true
+Solution #2:
+(done (mplus SP (mdiv (mtimes IP (mplus IP 1)) 2))) /\ (band (mle 0 N) (mle 1 N)) => (done (mdiv (mtimes N (mplus N 1)) 2)) /\ true
+*/
+
+axiom : (loop (mplus 0 N) (mminus N 1)) /\ false => (done (mdiv (mtimes N (mplus N 1)) 2)) /\ true;
+
+/*
+Success: 0 solutions.
+*/
+
+subs in sum : (done (mplus S (mdiv (mtimes I (mplus I 1)) 2))) /\ (band (mle 0 N) (mle 1 N)) => (done (mdiv (mtimes N (mplus N 1)) 2)) /\ true;
+
+/*
+Success: 1 solutions.
+Solution #1:
+(done (mplus S (mdiv (mtimes I (mplus I 1)) 2))) /\ (band (band (mle 0 N) (mle 1 N)) (bnot (bimplies (band (mle 0 N) (mle 1 N)) (_existsInt N_2 (_existsInt N_2 (mequals (mdiv (mtimes N_2 (mplus N_2 1)) 2) (mplus S (mdiv (mtimes I (mplus I 1)) 2)))))))) => (done (mdiv (mtimes N (mplus N 1)) 2)) /\ true
+*/

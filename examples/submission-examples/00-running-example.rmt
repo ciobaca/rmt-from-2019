@@ -1,0 +1,239 @@
+/*
+  Welcome to the Running Example.
+
+  We define a constrained rewrite system consisting of the following
+  rules:
+
+    init(N) => loop(N, 2)
+    loop(N,I) => composite if exists K.(K > 1 and N = I * K)
+    loop(N,I) => loop(N, I + 1) if not exists K.(K > 1 and N = I * K)
+
+  We prove the system satisfies the following reachability property.
+
+    init(N) => composite if exists U.(U > 1 and U < N and mod(N, U) = 0)
+
+  That is, init(N) rewrites into composite if there exists a proper
+  divisor of N.
+
+*/
+
+/*
+
+Each RMT file can begin with a prelude that is sent as is to the
+SMT-solver on each query. By default, the SMT solver is Z3.
+
+The prelude can be used to enrich the builtin model with certain
+operations that are not predefined in the SMT solver. In our example,
+we define three predicates that will help us with the specification.
+
+*/
+
+/*
+
+  The next step is to define all sorts.
+
+  Sorts that are part of the builtin model must be given an
+  interpretation (just after the "/"). The interpretation is given as
+  the name of the corresponding set in SMT-LIB.
+
+  For example we use the builtin sort Int, which is interpreted as the
+  set of integers and the builtin sort Bool, which is interpreted as
+  the set of booleans.
+
+  Cfg is the only sort that is not builtin.
+
+  Note that we could use here more complicated interpretations, such
+  as "(Array Int Int)", to provide for more substantial examples.
+
+*/
+
+sorts Cfg;
+
+/*
+
+  The next step is to define all subsorting relations. There are some
+  technical restrictions on subsorting that we do not detail. As we do
+  not need any subsorting relation, we commented out the line.
+
+*/
+// subsort Int < Cfg;
+
+/*
+ 
+  Next comes the definition of all function symbols. Unlike the
+  submission, we must declare explicit symbols for all builtin
+  constants in the implementation. A builtin function symbol must be
+  given an arity and the interpretation follows after the "/"
+  character.
+
+*/
+
+signature // "m" stands for math built-in function symbols
+  // constants
+  mzero : -> Int / "0", mone : -> Int / "1", mtwo : -> Int / "2",
+  mfour : -> Int / "4", mnine: -> Int / "9",
+  // arithmetic
+  mplus : Int Int->Int / "+", mminus : Int Int->Int / "-",
+  mtimes : Int Int->Int / "*", mdiv : Int Int->Int / "div",
+  mmod : Int Int->Int / "mod",
+  // relations
+  mless : Int Int -> Bool / "<",
+  mle : Int Int->Bool / "<=", mequals : Int Int->Bool / "=",
+  // note that we can now interpret relations using names
+  // defined in the SMT prelude as follows:
+
+  // bool built-in function symbols
+  bequals : Bool Bool->Bool / "=", band : Bool Bool->Bool / "and",
+  bimplies : Bool Bool->Bool / "=>", bor : Bool Bool->Bool / "or",
+  bnot : Bool->Bool / "not", true : ->Bool / "true", false : ->Bool / "false",
+
+/*
+
+  The following symbols are the only uninterpreted symbols in our
+  example.
+
+*/
+  init : Int -> Cfg,
+  loop : Int Int -> Cfg,
+  composite : -> Cfg;
+
+
+/*
+
+  As a technically, we must declare the names and sorts of all
+  variables that we will be using.
+
+ */	
+
+variables B : Bool, S : Int, N : Int, I : Int, U : Int, X : Int, Y : Int, Z : Int, K : Int;
+
+
+builtins hasdiv : Int Int Int -> Bool, mcomposite : Int -> Bool, bpredicate : Int Int -> Bool;
+
+assert (_forallInt X (_forallInt Y (_forallInt Z
+       (biff
+        (hasdiv X Y Z)
+        (_existsInt U (band (mge U Y) (band (mle U Z) (mequals 0 (mmod X U)))))))));
+
+assert (_forallInt X
+         (biff
+           (mcomposite X)
+           (_existsInt U (band (mgt U 1) (band (mless U X) (mequals 0 (mmod X U)))))
+	 ));
+
+assert (_forallInt N (_forallInt I
+         (biff
+	   (bpredicate N I)
+	   (_existsInt K  (band (mgt K 1) (mequals N (mtimes I K))))
+	 )));
+// smt-prelude "
+// (define-fun hasdiv ((x Int) (y Int) (z Int)) Bool
+//    (exists ((u Int))
+//         (and (>= u y) (<= u z) (= 0 (mod x u))))
+// )
+// (define-fun composite ((x Int)) Bool
+//    (exists ((u Int))
+//         (and (> u 1) (< u x) (= 0 (mod x u))))
+// ;;  (hasdiv x 2 (- x 1))
+// )
+// (define-fun bpredicate ((n Int) (i Int)) Bool
+//    (exists ((k Int))
+//      (and (> k 1)
+//           (= n (* i k)))
+//    )
+// )
+// "
+
+
+/*
+
+  Now we are done with the preliminaries and the most important part
+  follows.
+
+  The next definition is of the rewrite system (named "composability")
+  given as a running example in our submission.
+
+*/
+
+constrained-rewrite-system composability
+
+  // init(N) => (loop N, 2)
+  (init N) => (loop N 2),
+
+  // (loop N, 2) => composite if (exists ((k Int)) (and (> k 1) (= n (* i k))))
+  (loop N I) /\ (bpredicate N I) => composite,
+
+  // (loop N, 2) => composite if not (exists ((k Int)) (and (> k 1) (= n (* i k))))
+  (loop N I) /\ (bnot (bpredicate N I)) => (loop N (mplus I mone));
+
+/*
+
+  Note that bpredicate(n, i) is defined as (exists ((k Int)) (and (> k
+  1) (= n (* i k)))).
+
+  This is currently a limitation in the tool that does not allow to
+  use existential quantifiers during the parsing phase and therefore
+  we resort to defining a predicate "bpredicate" in SMT-LIB (see
+  smt-prelude and signature definition) that handles quantification
+  for us. However, note that the tool crucially uses quantification
+  internally (see rule der^forall) and therefore this is just a
+  parsing issue.
+
+*/
+
+
+/*
+
+  The next definition captures the set of "circularities". This set
+  should include the actual property that we want to prove of our
+  system, but also all helper circularities that are needed during the
+  proof.
+
+ */
+constrained-rewrite-system circularitiesComposite
+
+  // the specification that we actually want to prove
+  (init N) /\ (mcomposite N) => composite,
+
+  // the helper circularity (plays the role of an invariant)
+  (loop N I) /\ (band (mle 2 I) (hasdiv N  I (mminus N 1))) => composite;
+
+/*
+
+  Note that we also make use of the smt-prelude trick to define the
+  predicates mhasdiv(x,y,z) (checks whether x has any divisors between
+  y and z) and mcomposite(x) (checks whether x has any divisors
+  between 2 and x - 1) to define the helper circularity.
+
+  A more subtle remark is that we use the same syntax for rewrite
+  rules (system named "composability" above) and reachability formulae
+  (system named "circularitiesComposite"). Although syntactically
+  similar, they have different semantics (see paper). The only
+  difference is that, in the implementation, we do not allow for
+  conditions in the rhs of a reachability formula. Therefore, all our
+  reachability formulae are of the form "lhs | phi => rhs |
+  true". Altough this is indeed a limitation of the tool when compared
+  to the submission, it is a somewhat minor issue, since a reachabilty
+  formula of the form "lhs | phil => rhs | phir" can be
+  simulated/encoded by adding a rewrite rule of the form "rhs | phir
+  => success(vars(rhs, phir))" to the rewrite system and using as a
+  goal the formula "lhs | phil => success(vars(rhs, phir))", where
+  "sucess" is a fresh symbol of the appropriate arity.
+
+*/
+
+/*
+
+ The following query ("prove") asks the tool to search for a guarded
+ proof tree of all circularities (including the helper
+ circularity/circularities). In case all circularities succeed, we can
+ be sure that our specification holds (in the sense described in the
+ submission). Otherwise, if any circularity fails to be proved, we are
+ not guaranteed anything.
+
+ The "prove" command can optionally take arguments that limit the
+ search depth. By default, the search depth is set to 100.
+
+*/
+
+prove in composability : circularitiesComposite;

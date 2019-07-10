@@ -1,0 +1,35 @@
+smt-prelude "(define-fun-rec gcd ((x Int) (y Int)) Int
+     (ite (= y 0)
+      x
+      (gcd y (- x y))
+     )
+)"
+
+sorts State;
+// subsort Int < State;
+
+signature
+
+  mgcd : Int Int -> Int / "gcd",
+  mmod : Int Int -> Int / "mod",
+
+  init : Int Int -> State, loop : Int Int -> State, done : Int -> State,
+  ok : Int Int -> State;
+
+variables S : Int, N : Int, I : Int, J : Int, X : Int, Y : Int, Z : Int, A : Int, B : Int,
+ C : Int, D : Int, BB : Bool;
+
+constrained-rewrite-system gcd
+  (init X Y) => (loop X Y),
+
+  (loop X Y) /\ (bnot (mequals Y 0)) =>
+  (loop Y (mminus X Y)),
+
+  (loop X Y) /\ (mequals Y 0) =>
+  (done X);
+
+constrained-rewrite-system circ
+  (init X Y) => (done (mgcd X Y)),
+  (loop X Y) => (done (mgcd X Y));
+
+prove [5,2] in gcd : circ;

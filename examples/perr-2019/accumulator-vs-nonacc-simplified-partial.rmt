@@ -1,0 +1,149 @@
+/* Top-most definition of the FUN language. */
+sorts State, Exp, Nexp, List;
+
+subsort Int < Exp;
+subsort Nexp < Exp;
+
+signature
+  empty : -> List,
+  cons : Exp List -> List,
+
+  HOLE : -> Exp,
+
+  fplus : Exp Exp -> Nexp,
+  fminus : Exp Exp -> Nexp,
+
+  f : Exp -> Nexp,
+
+  fa : Exp Exp Exp -> Nexp,
+
+  pair : List List -> State;
+
+variables N : Int, I : Int, J : Int, K : Int, S : Int, A : Int, X : Int,
+
+E : Exp, E1 : Exp, E2 : Exp, E3 : Exp,
+
+NE : Nexp, NE1 : Nexp, NE2 : Nexp, NE3 : Nexp,
+
+LIST : List;
+
+define reduce : Int Int List -> List by
+  (reduce I N LIST) /\ (mgt I N) => LIST,
+  (reduce I N LIST) /\ (mle I N) => (cons (fplus I HOLE)
+                                       (reduce (mplus I 1) N LIST));
+
+//definedsearch [1,10] (cons (f (mminus N 1) ) (reduce (mplus (mminus N 1) 1) N empty));
+
+//definedsearch [1,5] (reduce (mplus I 1) N empty);
+//!EOF!
+
+constrained-rewrite-system flanguage
+  (cons (fplus NE1 E2) LIST) => (cons NE1 (cons (fplus HOLE E2) LIST)),
+  (cons I (cons (fplus HOLE E2) LIST)) => (cons (fplus I E2) LIST),
+  (cons (fplus I NE2) LIST) => (cons NE2 (cons (fplus I HOLE) LIST)),
+  (cons J (cons (fplus I HOLE) LIST)) => (cons (fplus I J) LIST),
+  (cons (fplus I J) LIST) => (cons (mplus I J) LIST),
+  
+  (cons (fminus NE1 E2) LIST) => (cons NE1 (cons (fminus HOLE E2) LIST)),
+  (cons I (cons (fminus HOLE E2) LIST)) => (cons (fminus I E2) LIST),
+  (cons (fminus I NE2) LIST) => (cons NE2 (cons (fminus I HOLE) LIST)),
+  (cons J (cons (fminus I HOLE) LIST)) => (cons (fminus I J) LIST),
+  (cons (fminus I J) LIST) => (cons (mminus I J) LIST),
+
+  (cons (f NE) LIST) => (cons NE (cons (f HOLE) LIST)),
+  (cons I (cons (f HOLE) LIST)) => (cons (f I) LIST),
+  (cons (f I) LIST) /\ (bnot (mle I 0)) => (cons (fplus I (f (fminus I 1))) LIST),
+  (cons (f I) LIST) /\ (mle I 0) => (cons 0 LIST),
+
+  (cons (fa NE1 E2 E3) LIST) => (cons NE1 (cons (fa HOLE E2 E3) LIST)),
+  (cons N (cons (fa HOLE E2 E3) LIST)) => (cons (fa N E2 E3) LIST),
+
+  (cons (fa N NE2 E3) LIST) => (cons NE2 (cons (fa N HOLE E3) LIST)),
+  (cons I (cons (fa N HOLE E3) LIST)) => (cons (fa N I E3) LIST),
+
+  (cons (fa N I NE3) LIST) => (cons NE3 (cons (fa N I HOLE) LIST)),
+  (cons A (cons (fa N I HOLE) LIST)) => (cons (fa N I A) LIST),
+
+  (cons (fa N I A) LIST) /\ (bnot (mle I N)) => (cons A LIST),
+  (cons (fa N I A) LIST) /\ (mle I N) => (cons (fa N (fplus I 1) (fplus A I)) LIST);
+ 
+//run in flanguage : (cons (fa 4 0 9) empty);
+//run in flanguage : (cons (f 3) (reduce 4 5 empty));
+
+//run in flanguage : (cons (f 4) empty);
+
+//!EOF!
+
+// define reduce : Int Int List -> List by
+//  (reduce I N LIST) /\ (mgt I N) => LIST,
+//  (reduce I N LIST) /\ (mle I N) => (cons (fplus I HOLE)
+//                                       (reduce (mplus I 1) N LIST));
+
+
+/*
+// PARTIAL SIMULATION : works to show accumulator simulates non-accumulator
+
+show-simulation [ 100, partial ] in flanguage and flanguage :
+
+(pair
+      (cons (f N) empty)
+      (cons (fa N 0 0) empty)
+      ) /\ (mle 0 N)
+//  /\       (band (mle 0 N) (mle N 5))
+
+,
+
+(pair
+     (cons S (reduce I N empty))
+     (cons (fa N I S) empty)
+     )
+ /\ (band
+          (band (mle 0 N) true)
+          (band (mle I N) (mle 1 I)))
+
+, 
+(pair
+      (cons (f I) (reduce (mplus I 1) N empty))
+      (cons (fa N 0 0) empty)
+      )
+  /\ (band
+           (band (mle 0 N) true)
+           (band (mle (mplus I 1) N) (mle 0 I)))
+	   
+with-base
+      (pair (cons S empty) (cons S empty));
+
+//!EOF!
+*/
+
+// PARTIAL SIMULATION : works to show non-accumulator simulates accumulator
+
+show-simulation [ 100, partial ] in flanguage and flanguage :
+
+(pair
+      (cons (fa N 0 0) empty)
+      (cons (f N) empty)
+      ) /\ (mle 0 N)
+//  /\       (band (mle 0 N) (mle N 5))
+
+,
+
+(pair
+     (cons (fa N I S) empty)
+     (cons S (reduce I N empty))
+     )
+ /\ (band
+          (band (mle 0 N) true)
+          (band (mle I N) (mle 0 I)))
+
+, 
+(pair
+      (cons (fa N 0 0) empty)
+      (cons (f I) (reduce (mplus I 1) N empty))
+      )
+  /\ (band
+           (band (mle 0 N) true)
+           (band (mle (mplus I 1) N) (mle 0 I)))
+	   
+with-base
+      (pair (cons S empty) (cons S empty));

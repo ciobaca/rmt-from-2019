@@ -1,0 +1,129 @@
+/*
+
+This is an example accompanying the RMT paper submission.
+
+The example proves the formal correctness of a rewrite system
+computing 1 + 2 + ... + N.
+
+The example comes as 5 files and this is the fifth (the last) one.
+
+We have a rewrite system that computes the sum of the first N positive
+natural numbers.
+
+This example shows what happens when you try to prove something false
+-- the proof will fail.
+
+Run this example with
+
+./rmt -v 0 < 01-sum-v5.rmt
+
+The output should be:
+
+Proving circularity #1:
+--------
+    - init(N) if false -----> done((div (* N (+ N 1)) 2))
+    - init(N) if false =(C)=> done((div (* N (+ N 1)) 2))
+        - loop(0,N) if false -----> done((div (* N (+ N 1)) 2))
+            - done((+ 0 (div (* N (+ N 1)) 2))) if true -----> done((div (* N (+ N 1)) 2))
+            - done((+ 0 (div (* N (+ N 1)) 2))) if false =(C)=> done((div (* N (+ N 1)) 2))
+            - done((+ 0 (div (* N (+ N 1)) 2))) if false =(R)=> done((div (* N (+ N 1)) 2))
+        * Proved that done((+ 0 (div (* N (+ N 1)) 2))) if true => done((div (* N (+ N 1)) 2))
+        - loop(0,N) if _existsInt(I_1,_existsInt(S_1,true)) =(C)=> done((div (* N (+ N 1)) 2))
+        - loop(0,N) if (not (exists ((I_1 Int)) (exists ((S_1 Int)) true))) =(R)=> done((div (* N (+ N 1)) 2))
+    * Proved that loop(0,N) if true => done((div (* N (+ N 1)) 2))
+    - init(N) if true =(R)=> done((div (* N (+ N 1)) 2))
+* Proved that init(N) if true => done((div (* N (+ N 1)) 2))
+--------
+Circularity #1 proved.
+
+Proving circularity #2:
+--------
+    - loop(S,I) if false -----> done((+ S (div (* I (+ I 1)) 2)))
+    - loop(S,I) if false =(C)=> done((+ S (div (* I (+ I 1)) 2)))
+        - loop((+ S I),(- I 1)) if false -----> done((+ S (div (* I (+ I 1)) 2)))
+            - done((+ (+ S I) (div (* (- I 1) (+ (- I 1) 1)) 2))) if (<= 1 I) -----> done((+ S (div (* I (+ I 1)) 2)))
+            - done((+ (+ S I) (div (* (- I 1) (+ (- I 1) 1)) 2))) if false =(C)=> done((+ S (div (* I (+ I 1)) 2)))
+            - done((+ (+ S I) (div (* (- I 1) (+ (- I 1) 1)) 2))) if false =(R)=> done((+ S (div (* I (+ I 1)) 2)))
+        * Proved that done((+ (+ S I) (div (* (- I 1) (+ (- I 1) 1)) 2))) if (<= 1 I) => done((+ S (div (* I (+ I 1)) 2)))
+        - loop((+ S I),(- I 1)) if (and (<= 1 I) (exists ((I_6 Int)) (exists ((S_6 Int)) (<= 1 I)))) =(C)=> done((+ S (div (* I (+ I 1)) 2)))
+        - loop((+ S I),(- I 1)) if (and (<= 1 I) (not (exists ((I_6 Int)) (exists ((S_6 Int)) (<= 1 I))))) =(R)=> done((+ S (div (* I (+ I 1)) 2)))
+    * Proved that loop((+ S I),(- I 1)) if (<= 1 I) => done((+ S (div (* I (+ I 1)) 2)))
+        - done(S) if (and (not (<= 1 I)) (=> (not (<= 1 I)) (= (+ S (div (* I (+ I 1)) 2)) S))) -----> done((+ S (div (* I (+ I 1)) 2)))
+        - done(S) if false =(C)=> done((+ S (div (* I (+ I 1)) 2)))
+        - done(S) if (and (not (<= 1 I)) (not (=> (not (<= 1 I)) (= (+ S (div (* I (+ I 1)) 2)) S)))) =(R)=> done((+ S (div (* I (+ I 1)) 2)))
+    ! Remaining proof obligation:done(S) if (and (not (<= 1 I)) (not (=> (not (<= 1 I)) (= (+ S (div (* I (+ I 1)) 2)) S)))) => done((+ S (div (* I (+ I 1)) 2)))
+    * Assuming that done(S) if (not (<= 1 I)) => done((+ S (div (* I (+ I 1)) 2)))
+    - loop(S,I) if true =(R)=> done((+ S (div (* I (+ I 1)) 2)))
+* Proved that loop(S,I) if true => done((+ S (div (* I (+ I 1)) 2)))
+--------
+Circularity #2 not proved. The following proof obligations failed:
+Remaining proof obligation #1 (reason: could not prove completeness): done(S) if (and (not (<= 1 I)) (not (=> (not (<= 1 I)) (= (+ S (div (* I (+ I 1)) 2)) S)))) => done((+ S (div (* I (+ I 1)) 2)))
+
+This example is identical to 01-examples-sum-v4.rmt, but it
+illustrates a "prove" query where the proof does not go through.
+
+*/
+
+sorts Int/"Int",
+Bool/"Bool", State; // subsort Int < State;
+
+signature mzero:->Int/"0", mone:->Int/"1", mtwo:->Int/"2",
+  mplus:Int Int->Int/"+", mminus:Int Int->Int/"-",
+  mtimes:Int Int->Int/"*", mdiv:Int Int->Int/"div",
+  mle:Int Int->Bool/"<=", mequals:Int Int->Bool/"=",
+
+  bequals:Bool Bool->Bool/"=", band:Bool Bool->Bool/"and",
+  bimplies:Bool Bool->Bool/"=>", bor:Bool Bool->Bool/"or",
+  bnot:Bool->Bool/"not", true:->Bool/"true", false:->Bool/"false",
+
+  init:Int->State, loop:Int Int->State, done:Int->State;
+
+variables B:Bool, S:Int, N:Int, I:Int;
+
+rewrite-system simplifications
+  bnot(false)=>true, bnot(true)=>false, bnot(bnot(B))=>B,
+  band(false, B)=>false, band(true, B)=>B, band(B, false)=>false,
+  band(B, true)=>B, bimplies(true, B)=>B, bimplies(false, B)=>true,
+  bor(false, B)=>B, bor(true, B)=>true, bor(B, false)=>B,
+  bor(B, true)=>true, mequals(N, N)=>true, bequals(B, B)=>true,
+  bequals(true, B)=>B,bequals(false, B)=>bnot(B), bequals(B, true)=>B,
+  bequals(B, false)=>bnot(B), band(B, B)=>B, bor(B, B)=>B;
+
+constrained-rewrite-system sum
+  init(N) => loop(mzero, N),
+  loop(S, N) /\ mle(mone, N) => loop(mplus(S, N), mminus(N, mone)),
+  loop(S, N) /\ bnot(mle(mone, N)) => done(S);
+
+/*
+
+We use the same set of circularities as in the previous file, but we
+"forget" to add the condition "/\ mle(mzero, N)".
+
+*/
+constrained-rewrite-system circularities
+  init(N) =>
+     done(mdiv(mtimes(N,mplus(N,mone)),mtwo)),
+  loop(S,I) =>
+     done(mplus(S,mdiv(mtimes(I,mplus(I,mone)),mtwo)));
+
+/*
+
+This time, the proof will not go through: the first circularity is
+still discharged by using the second circularity, but the second
+circularity cannot be used to prove itself. There is one remaining
+proof obligation that is output by RMT:
+
+Circularity #2 not proved. The following proof obligations failed:
+Remaining proof obligation #1 (reason: could not prove completeness): done(S) if (and (not (<= 1 I)) (not (=> (not (<= 1 I)) (= (+ S (div (* I (+ I 1)) 2)) S)))) => done((+ S (div (* I (+ I 1)) 2)))
+
+The output is in SMT format, in order to save some space.
+
+If we analyze the reachability property that could not be proven, we
+see that RMT cannot prove that "S = S + I(I+1)/2" when I < 1. This is
+exactly because we forgot the condition that I >= 0 in the
+circularity. If at least one circularity fails (like in this case),
+note that we cannot trust the other circularities, even of their proof
+went through, because they might rely on the failing circularity.
+
+*/
+prove in sum : circularities;

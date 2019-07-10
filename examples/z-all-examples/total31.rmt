@@ -1,0 +1,56 @@
+/* example for zune bug */
+sorts Int/"Int", Bool/"Bool", State, nState;
+
+signature mzero:->Int/"0", mone:->Int/"1", mtwo:->Int/"2", mthree:->Int/"3", mfour:->Int/"4", msix:->Int/"6", mtsf:->Int/"365", mtss:->Int/"366",
+  mplus:Int Int->Int/"+", mminus:Int Int->Int/"-",
+  mtimes:Int Int->Int/"*", mdiv:Int Int->Int/"div", mmod:Int Int->Int/"mod",
+  mle:Int Int->Bool/"<=", mequals:Int Int->Bool/"=",
+
+  bequals:Bool Bool->Bool/"=", band:Bool Bool->Bool/"and",
+  bimplies:Bool Bool->Bool/"=>", bor:Bool Bool->Bool/"or",
+  bnot:Bool->Bool/"not", true:->Bool/"true", false:->Bool/"false",
+
+  init:Int->State, loop:Int Int->State, done:Int->State,
+  protect:State Int->nState;
+
+variables B:Bool, S:Int, N:Int, I:Int, X:Int, M:Int, VN:Int, VI:Int, D:Int, Y:Int;
+
+rewrite-system simplifications
+  bnot(false)=>true, bnot(true)=>false, bnot(bnot(B))=>B,
+  band(false, B)=>false, band(true, B)=>B, band(B, false)=>false,
+  band(B, true)=>B, bimplies(true, B)=>B, bimplies(false, B)=>true,
+  bor(false, B)=>B, bor(true, B)=>true, bor(B, false)=>B,
+  bor(B, true)=>true, mequals(N, N)=>true, bequals(B, B)=>true,
+  bequals(true, B)=>B,bequals(false, B)=>bnot(B), bequals(B, true)=>B,
+  bequals(B, false)=>bnot(B), band(B, B)=>B, bor(B, B)=>B;
+
+constrained-rewrite-system zune
+  loop(D,Y) /\ mle(D,mtsf) => done(Y),
+  //simplified condition for leap year
+  loop(D,Y) /\ band(bnot(mle(D,mtsf)),band(mequals(mmod(Y,mfour),mzero),bnot(mle(D,mtss)))) => loop(mminus(D,mtss),mplus(Y,mone)),
+  loop(D,Y) /\ band(bnot(mle(D,mtsf)),band(mequals(mmod(Y,mfour),mzero),mle(D, mtss))) => loop(D,Y),
+  loop(D,Y) /\ band(bnot(mle(D,mtsf)),bnot(mequals(mmod(Y,mfour),mzero))) => loop(mminus(D,mtsf),mplus(Y,mone));
+
+constrained-rewrite-system zune_fixed
+  loop(D,Y) /\ mle(D,mtsf) => done(Y),
+  loop(D,Y) /\ band(bnot(mle(D,mtsf)),band(mequals(mmod(Y,mfour),mzero),bnot(mle(D,mtss)))) => loop(mminus(D,mtss),mplus(Y,mone)),
+  loop(D,Y) /\ band(bnot(mle(D,mtsf)),band(mequals(mmod(Y,mfour),mzero),mle(D, mtss))) => done(Y),
+  loop(D,Y) /\ band(bnot(mle(D,mtsf)),bnot(mequals(mmod(Y,mfour),mzero))) => loop(mminus(D,mtsf),mplus(Y,mone));
+
+constrained-rewrite-system termination
+  loop(D,Y) /\ mle(mzero,D) => done(N);
+
+/*constrained-rewrite-system termination_protected
+  protect(loop(D,Y),X) /\ band(mle(mplus(D,mtwo),X),mle(mzero,D)) => protect(done(N),M);*/
+
+/* this next proof will be successful even though it should not be */
+//prove in zune : termination;
+
+//instrument zune zune_protected State nState protect;
+/* this proof, however, will correctly be unsuccessful */
+//prove [20,2] in zune_protected : termination_protected;
+
+instrument zune_fixed zune_fprotected State nState protect;
+cinstrument termination termination_protected State nState protect mplus(D,mtwo);
+/* this proof will correctly work */
+prove [20,2] in zune_fprotected : termination_protected;

@@ -1,0 +1,35 @@
+/*
+
+This example illustrates a rewrite system that computes the
+multiplication two natural numbers by repeated addition.
+
+Run the example with
+
+./main -v 0 < example10.rmt
+
+The expected output is for the proof to go through.
+
+*/
+sorts State;
+
+signature 
+  init : Int Int -> State, loop : Int Int Int -> State, done : Int -> State,
+  ok : Int Int -> State;
+
+variables S : Int, N : Int, I : Int, J : Int, X : Int, Y : Int, Z : Int, A : Int, B : Int,
+ C : Int, D : Int, BB : Bool;
+
+constrained-rewrite-system multbyadd
+  (init X Y) => (loop 0 X Y),
+
+  (loop S X Y) /\ (mle 1 Y) =>
+  (loop (mplus S X) X (mminus Y 1)),
+
+  (loop S X Y) /\ (bnot (mle 1 Y)) =>
+  (done S);
+
+constrained-rewrite-system circ
+  (init X Y) /\ (mle 0 Y) => (done (mtimes X Y)),
+  (loop S X Y) /\ (mle 0 Y) => (done (mplus S (mtimes X Y)));
+
+prove [5,2] in multbyadd : circ;

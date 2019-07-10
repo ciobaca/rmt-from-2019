@@ -1,0 +1,303 @@
+/*
+ 
+  This example contains the operational sematics of a standard
+  FUNctional language implemented as a constrained rewrite system.
+
+  The circularities prove that a recursive program computing the sum
+  of the squares of the first N naturals rewrites into N(N+1)(2N+1)/6.
+
+  Run this example with:
+
+./rmt -v 0 < 09-fun-v1.rmt
+
+  The expected output is for both circularities to be proven.
+
+*/
+smt-prelude
+"(declare-fun uifun (Int Int) Int)
+ (declare-datatypes () ((VarF fvarX fvarY fvarZ fvarF)))
+ (define-fun sumUpTo ((n Int)) Int
+    (div (* n (+ n 1)) 2)
+ )
+ (define-fun even ((n Int)) Bool
+    (= (mod n 2) 0)
+ )
+ (define-fun sum ((a Int) (b Int)) Int
+   (- (sumUpTo b) (sumUpTo (- a 1))))
+ (define-fun sumofsquaresUpTo ((n Int)) Int
+   (div (* n (+ n 1) (+ n n 1)) 6))
+ (define-fun sumofsquares ((a Int) (b Int)) Int
+   (- (sumofsquaresUpTo b) (sumofsquaresUpTo (- a 1))))
+"
+
+sorts Int / "Int",
+      Bool / "Bool",
+//      IntP,
+//      BoolP,
+      VarF / "VarF",
+      ExpF,
+      NonValExpF,
+      ValExpF,
+      CfgF
+    ;
+
+// after declaring all sorts,
+// we must declare all subsort relations
+//subsort Int < IntP;
+//subsort IntP < AExp;
+//subsort Var < NonValAExp;
+//subsort NonValAExp < AExp;
+//subsort NonValBExp < BExp;
+//subsort AExp BExp Stmt < Code;
+//subsort Bool < BoolP;
+//subsort BoolP < BExp;
+//subsort AExp < Stmt;
+//subsort BExp < Stmt;
+
+subsort Bool < ValExpF;
+subsort Int < ValExpF;
+subsort VarF < ExpF;
+subsort ValExpF < ExpF;
+subsort NonValExpF < ExpF;
+
+/* next we must declare all function symbols */
+signature
+	// interpreted integers and booleans
+	mzero : -> Int / "0",
+	mone : -> Int / "1",
+	mtwo : -> Int / "2",
+	mthree : -> Int / "3",
+	mplus : Int Int -> Int / "+",
+	mminus : Int Int -> Int / "-",
+	mtimes : Int Int -> Int / "*",
+	mdiv : Int Int -> Int / "div",
+	mle : Int Int -> Bool / "<=",
+	mless : Int Int -> Bool / "<",
+	meven : Int -> Bool / "even",
+	mequals : Int Int -> Bool / "=",
+
+	sum : Int Int -> Int / "sum",
+	sumofsquares : Int Int -> Int / "sumofsquares",
+
+	bequals : Bool Bool -> Bool / "=",
+	band : Bool Bool -> Bool / "and",
+	bimplies : Bool Bool -> Bool / "=>",
+	bor : Bool Bool -> Bool / "or",
+	bnot : Bool -> Bool / "not",
+
+	true : -> Bool / "true",
+	false : -> Bool / "false",
+
+	vfequals : VarF VarF -> Bool / "=",
+
+	// functional language
+	miu : VarF ExpF -> NonValExpF,
+	lam : VarF ExpF -> ValExpF,
+
+	feven : ExpF -> NonValExpF,
+	fnot : ExpF -> NonValExpF,
+	fequals : ExpF ExpF -> NonValExpF,
+	fplus : ExpF ExpF -> NonValExpF,
+	fdiv : ExpF ExpF -> NonValExpF,
+	ftimes : ExpF ExpF -> NonValExpF,
+	fminus : ExpF ExpF -> NonValExpF,
+	fle : ExpF ExpF -> NonValExpF,
+	fless : ExpF ExpF -> NonValExpF,
+	fite : ExpF ExpF ExpF -> NonValExpF,
+
+	app : ExpF ExpF -> NonValExpF,
+
+	F : ExpF -> CfgF,
+
+	contextexp : ValExpF -> ValExpF,
+	contextexp : NonValExpF -> NonValExpF,
+
+	fvarX : -> VarF / "fvarX",
+	fvarY : -> VarF / "fvarY",
+	fvarZ : -> VarF / "fvarZ",
+	fvarF : -> VarF / "fvarF",
+	substitute : VarF ExpF ExpF -> ExpF / defined;
+
+/* next we must declare all variables */
+variables
+	B : Bool,
+	N : Int,
+	S : Int,
+	I : Int,
+	J : Int,
+	XF : VarF,
+	FEXP : ExpF,
+	FEXP1 : ExpF,
+	FEXP2 : ExpF,
+	FEXP3 : ExpF,
+	FNV : NonValExpF,
+	VF : ValExpF;
+
+/* next, declare all rewrite systems */
+
+rewrite-system simplifications
+  bnot(false) => true, bnot(true) => false, bnot(bnot(B)) => B,
+  band(false, B) => false, band(true, B) => B, band(B, false) => false,
+  band(B, true) => B, bimplies(true, B) => B, bimplies(false, B) => true,
+  bor(false, B) => B, bor(true, B) => true, bor(B, false) => B,
+  bor(B, true) => true, mequals(N, N) => true, bequals(B, B) => true,
+  bequals(true, B) => B, bequals(false, B) => bnot(B), bequals(B, true) => B,
+  bequals(B, false) => bnot(B), band(B, B) => B, bor(B, B) => B;
+
+rewrite-system functions
+  substitute(XF, FEXP, I) => I,
+  substitute(XF, FEXP, B) => B,
+  substitute(XF, FEXP, XF) => FEXP,
+  substitute(fvarX, FEXP, fvarY) => fvarY,
+  substitute(fvarX, FEXP, fvarZ) => fvarZ,
+  substitute(fvarX, FEXP, fvarF) => fvarF,
+
+  substitute(fvarY, FEXP, fvarX) => fvarX,
+  substitute(fvarY, FEXP, fvarZ) => fvarZ,
+  substitute(fvarY, FEXP, fvarF) => fvarF,
+
+  substitute(fvarZ, FEXP, fvarY) => fvarY,
+  substitute(fvarZ, FEXP, fvarZ) => fvarZ,
+  substitute(fvarZ, FEXP, fvarF) => fvarF,
+  
+  substitute(fvarF, FEXP, fvarX) => fvarX,
+  substitute(fvarF, FEXP, fvarY) => fvarY,
+  substitute(fvarF, FEXP, fvarZ) => fvarZ,
+
+  substitute(XF, FEXP, feven(FEXP1)) => feven(substitute(XF, FEXP, FEXP1)),
+  substitute(XF, FEXP, fnot(FEXP1)) => fnot(substitute(XF, FEXP, FEXP1)),
+  substitute(XF, FEXP, fequals(FEXP1, FEXP2)) => fequals(substitute(XF, FEXP, FEXP1), substitute(XF, FEXP, FEXP2)),
+  substitute(XF, FEXP, fplus(FEXP1, FEXP2)) => fplus(substitute(XF, FEXP, FEXP1), substitute(XF, FEXP, FEXP2)),
+  substitute(XF, FEXP, ftimes(FEXP1, FEXP2)) => ftimes(substitute(XF, FEXP, FEXP1), substitute(XF, FEXP, FEXP2)),
+  substitute(XF, FEXP, fdiv(FEXP1, FEXP2)) => fdiv(substitute(XF, FEXP, FEXP1), substitute(XF, FEXP, FEXP2)),
+  substitute(XF, FEXP, fminus(FEXP1, FEXP2)) => fminus(substitute(XF, FEXP, FEXP1), substitute(XF, FEXP, FEXP2)),
+  substitute(XF, FEXP, fless(FEXP1, FEXP2)) => fless(substitute(XF, FEXP, FEXP1), substitute(XF, FEXP, FEXP2)),
+  substitute(XF, FEXP, fle(FEXP1, FEXP2)) => fle(substitute(XF, FEXP, FEXP1), substitute(XF, FEXP, FEXP2)),
+  substitute(XF, FEXP, fite(FEXP1, FEXP2, FEXP3)) => fite(substitute(XF, FEXP, FEXP1), substitute(XF, FEXP, FEXP2), substitute(XF, FEXP, FEXP3)),
+
+  substitute(XF, FEXP, app(FEXP1, FEXP2)) => app(substitute(XF, FEXP, FEXP1), substitute(XF, FEXP, FEXP2)),
+
+  substitute(fvarX, FEXP1, lam(fvarY, FEXP)) => lam(fvarY, substitute(fvarX, FEXP1, FEXP)),
+  substitute(fvarX, FEXP1, lam(fvarZ, FEXP)) => lam(fvarZ, substitute(fvarX, FEXP1, FEXP)),
+  substitute(fvarX, FEXP1, lam(fvarF, FEXP)) => lam(fvarF, substitute(fvarX, FEXP1, FEXP)),
+
+  substitute(fvarY, FEXP1, lam(fvarX, FEXP)) => lam(fvarX, substitute(fvarY, FEXP1, FEXP)),
+  substitute(fvarY, FEXP1, lam(fvarZ, FEXP)) => lam(fvarZ, substitute(fvarY, FEXP1, FEXP)),
+  substitute(fvarY, FEXP1, lam(fvarF, FEXP)) => lam(fvarF, substitute(fvarY, FEXP1, FEXP)),
+
+  substitute(fvarZ, FEXP1, lam(fvarX, FEXP)) => lam(fvarX, substitute(fvarZ, FEXP1, FEXP)),
+  substitute(fvarZ, FEXP1, lam(fvarY, FEXP)) => lam(fvarY, substitute(fvarZ, FEXP1, FEXP)),
+  substitute(fvarZ, FEXP1, lam(fvarF, FEXP)) => lam(fvarF, substitute(fvarZ, FEXP1, FEXP)),
+
+  substitute(fvarF, FEXP1, lam(fvarX, FEXP)) => lam(fvarX, substitute(fvarF, FEXP1, FEXP)),
+  substitute(fvarF, FEXP1, lam(fvarY, FEXP)) => lam(fvarY, substitute(fvarF, FEXP1, FEXP)),
+  substitute(fvarF, FEXP1, lam(fvarZ, FEXP)) => lam(fvarZ, substitute(fvarF, FEXP1, FEXP)),
+
+  substitute(XF, FEXP1, lam(XF, FEXP)) => lam(XF, FEXP),
+
+  substitute(fvarX, FEXP1, miu(fvarY, FEXP)) => miu(fvarY, substitute(fvarX, FEXP1, FEXP)),
+  substitute(fvarX, FEXP1, miu(fvarZ, FEXP)) => miu(fvarZ, substitute(fvarX, FEXP1, FEXP)),
+  substitute(fvarX, FEXP1, miu(fvarF, FEXP)) => miu(fvarF, substitute(fvarX, FEXP1, FEXP)),
+  
+  substitute(fvarY, FEXP1, miu(fvarX, FEXP)) => miu(fvarX, substitute(fvarY, FEXP1, FEXP)),
+  substitute(fvarY, FEXP1, miu(fvarZ, FEXP)) => miu(fvarZ, substitute(fvarY, FEXP1, FEXP)),
+  substitute(fvarY, FEXP1, miu(fvarF, FEXP)) => miu(fvarF, substitute(fvarY, FEXP1, FEXP)),
+  
+  substitute(fvarZ, FEXP1, miu(fvarX, FEXP)) => miu(fvarX, substitute(fvarZ, FEXP1, FEXP)),
+  substitute(fvarZ, FEXP1, miu(fvarY, FEXP)) => miu(fvarY, substitute(fvarZ, FEXP1, FEXP)),
+  substitute(fvarZ, FEXP1, miu(fvarF, FEXP)) => miu(fvarF, substitute(fvarZ, FEXP1, FEXP)),
+
+  substitute(fvarF, FEXP1, miu(fvarX, FEXP)) => miu(fvarX, substitute(fvarF, FEXP1, FEXP)),
+  substitute(fvarF, FEXP1, miu(fvarY, FEXP)) => miu(fvarY, substitute(fvarF, FEXP1, FEXP)),
+  substitute(fvarF, FEXP1, miu(fvarZ, FEXP)) => miu(fvarZ, substitute(fvarF, FEXP1, FEXP)),
+  
+  substitute(XF, FEXP1, miu(XF, FEXP)) => miu(XF, FEXP);
+
+constrained-rewrite-system flanguage
+	contextexp(feven(FNV)) => feven(contextexp(FNV)),
+	feven(contextexp(I)) => contextexp(feven(I)),
+	contextexp(feven(I)) => contextexp(meven(I)),
+
+	contextexp(fnot(FNV)) => fnot(contextexp(FNV)),
+	fnot(contextexp(B)) => contextexp(fnot(B)),
+	contextexp(fnot(B)) => contextexp(bnot(B)),
+
+	contextexp(fplus(FNV, FEXP)) => fplus(contextexp(FNV), FEXP),
+	fplus(contextexp(I), FEXP) => contextexp(fplus(I, FEXP)),
+	contextexp(fplus(I, FNV)) => fplus(I, contextexp(FNV)),
+	fplus(I, contextexp(J)) => contextexp(fplus(I, J)),
+	contextexp(fplus(I, J)) => contextexp(mplus(I, J)),
+
+	contextexp(fdiv(FNV, FEXP)) => fdiv(contextexp(FNV), FEXP),
+	fdiv(contextexp(I), FEXP) => contextexp(fdiv(I, FEXP)),
+	contextexp(fdiv(I, FNV)) => fdiv(I, contextexp(FNV)),
+	fdiv(I, contextexp(J)) => contextexp(fdiv(I, J)),
+	contextexp(fdiv(I, J)) => contextexp(mdiv(I, J)),
+
+	contextexp(ftimes(FNV, FEXP)) => ftimes(contextexp(FNV), FEXP),
+	ftimes(contextexp(I), FEXP) => contextexp(ftimes(I, FEXP)),
+	contextexp(ftimes(I, FNV)) => ftimes(I, contextexp(FNV)),
+	ftimes(I, contextexp(J)) => contextexp(ftimes(I, J)),
+	contextexp(ftimes(I, J)) => contextexp(mtimes(I, J)),
+
+	contextexp(fminus(FNV, FEXP)) => fminus(contextexp(FNV), FEXP),
+	fminus(contextexp(I), FEXP) => contextexp(fminus(I, FEXP)),
+	contextexp(fminus(I, FNV)) => fminus(I, contextexp(FNV)),
+	fminus(I, contextexp(J)) => contextexp(fminus(I, J)),
+	contextexp(fminus(I, J)) => contextexp(mminus(I, J)),
+	
+	contextexp(fless(FNV, FEXP)) => fless(contextexp(FNV), FEXP),
+	fless(contextexp(I), FEXP) => contextexp(fless(I, FEXP)),
+	contextexp(fless(I, FNV)) => fless(I, contextexp(FNV)),
+	fless(I, contextexp(J)) => contextexp(fless(I, J)),
+	contextexp(fless(I, J)) => contextexp(mless(I, J)),
+	
+	contextexp(fequals(FNV, FEXP)) => fequals(contextexp(FNV), FEXP),
+	fequals(contextexp(I), FEXP) => contextexp(fequals(I, FEXP)),
+	contextexp(fequals(I, FNV)) => fequals(I, contextexp(FNV)),
+	fequals(I, contextexp(J)) => contextexp(fequals(I, J)),
+	contextexp(fequals(I, J)) => contextexp(mequals(I, J)),
+	
+	contextexp(fle(FNV, FEXP)) => fle(contextexp(FNV), FEXP),
+	fle(contextexp(I), FEXP) => contextexp(fle(I, FEXP)),
+	contextexp(fle(I, FNV)) => fle(I, contextexp(FNV)),
+	fle(I, contextexp(J)) => contextexp(fle(I, J)),
+	contextexp(fle(I, J)) => contextexp(mle(I, J)),
+
+	contextexp(fite(FNV, FEXP1, FEXP2)) => fite(contextexp(FNV), FEXP1, FEXP2),
+	fite(contextexp(B), FEXP1, FEXP2) => contextexp(fite(B, FEXP1, FEXP2)),
+	contextexp(fite(true, FEXP1, FEXP2)) => contextexp(FEXP1),
+	contextexp(fite(false, FEXP1, FEXP2)) => contextexp(FEXP2),
+
+	contextexp(app(FNV, FEXP)) => app(contextexp(FNV), FEXP),
+	app(contextexp(lam(XF, FEXP1)), FEXP2) => contextexp(app(lam(XF, FEXP1), FEXP2)),
+	contextexp(app(lam(XF, FEXP1), FNV)) => app(lam(XF, FEXP1), contextexp(FNV)),
+	app(lam(XF, FEXP1), contextexp(VF)) => contextexp(app(lam(XF, FEXP1), VF)),
+	contextexp(app(lam(XF, FEXP1), VF)) => contextexp(substitute(XF, VF, FEXP1)),
+	
+	contextexp(miu(XF, FEXP)) => contextexp(substitute(XF, miu(XF, FEXP), FEXP))
+;
+
+constrained-rewrite-system circularities
+	F(contextexp(app(app(miu(fvarF,
+	                     lam(fvarX, lam(fvarY,
+			     fite(fle(fvarX, N),
+			          app(app(fvarF, fplus(fvarX, mone)), fplus(fvarY, ftimes(fvarX, fvarX))),
+				  fvarY)))),
+		             fplus(I,mone)), fplus(S,ftimes(I, I)))))
+			     /\ band(mle(mplus(I, mone), N), mle(mone, N)) =>
+	F(contextexp(mplus(S, sumofsquares(I, N))))
+
+,	
+
+ 	F(contextexp(app(app(miu(fvarF,
+	                    lam(fvarX, lam(fvarY,
+			    fite(fle(fvarX, N),
+			           app(app(fvarF, fplus(fvarX, mone)), fplus(fvarY, ftimes(fvarX, fvarX))),
+				   fvarY)))),
+			    mzero), S))) /\ mle(mone, N) =>
+ 	F(contextexp(mplus(S, sumofsquares(mone, N))))
+;
+
+
+prove [100,3] in flanguage : circularities;

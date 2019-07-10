@@ -1,0 +1,680 @@
+/*
+*/
+
+sorts
+      Var,
+      Code,
+      Stack,
+      Map / "(Array Int Int)",
+      Cfg,
+      CfgB,
+      State,
+      Exp,
+      NonValExp,
+      ValExp
+    ;
+
+subsort Bool < ValExp;
+subsort Int < ValExp;
+subsort Var < NonValExp;
+subsort ValExp < Exp;
+subsort NonValExp < Exp;
+
+signature
+  
+  P : Exp Map -> Cfg,
+  Q : Exp Map Exp -> CfgB,
+  pairfb : Cfg CfgB -> State,
+  pairbf : CfgB Cfg -> State,
+  pairbb : CfgB CfgB -> State,
+
+  var : Int -> Var,
+  update : Map Int Int -> Map / "store",
+  lookup  : Map Int -> Int / "select",
+
+  done : -> Stack,
+  push : Exp Stack -> Stack,
+  crash : -> CfgB,
+
+  plus : Exp Exp -> NonValExp,
+  plushl : Exp -> NonValExp,
+  plushr : Exp -> NonValExp,
+  times : Exp Exp -> NonValExp,
+  timeshl : Exp -> NonValExp,
+  timeshr : Exp -> NonValExp,
+  minus : Exp Exp -> NonValExp,
+  minushl : Exp -> NonValExp,
+  minushr : Exp -> NonValExp,
+  le : Exp Exp -> NonValExp,
+  lehl : Exp -> NonValExp,
+  lehr : Exp -> NonValExp,
+  less : Exp Exp -> NonValExp,
+  lesshl : Exp -> NonValExp,
+  lesshr : Exp -> NonValExp,
+  ite : Exp Exp Exp -> NonValExp,
+  iteh : Exp Exp -> NonValExp,
+  not : Exp -> NonValExp,
+  noth : -> NonValExp,
+
+  assign : Var Exp -> NonValExp,
+  assignh : Var -> NonValExp,
+  while : Exp Exp -> NonValExp,
+  skip : -> NonValExp,
+  seq : Exp Exp -> NonValExp,
+  seqh : Exp -> NonValExp,
+
+  app : Exp Exp -> NonValExp,
+  apphl : Exp -> NonValExp,
+  apphr : Exp -> NonValExp,
+  miu : Var Exp -> NonValExp,
+  lam : Var Exp -> ValExp
+;
+
+variables
+  X : Int,
+  Y : Int,
+  Z : Int,
+  I : Int,
+  J : Int,
+  N : Int,
+  SUM : Int,
+  S : Int,
+  SZ : Int,
+  SZ1 : Int,
+  SZ2 : Int,
+  SZ3 : Int,
+  SZ4 : Int,
+
+  B : Bool,
+
+  REST : Stack,
+  ENV : Map,
+  ENV1 : Map,
+  ENV2 : Map,
+  ENV3 : Map,
+  ENV4 : Map,
+
+  EXP : Exp,
+  EXP1 : Exp,
+  EXP2 : Exp,
+  EXP3 : Exp,
+  FNV : NonValExp,
+  VF : ValExp;
+
+/*
+define eqId : Id Id -> Bool by
+  eqId x x = true,
+  eqId y y = true,
+  eqId z z = true,
+  eqId x y = false,
+  eqId x z = false,
+   ...
+*/
+
+define substitute : Var Exp Exp -> Exp by
+  (substitute (var X) EXP I) => I,
+  (substitute (var X) EXP B) => B,
+  (substitute (var X) EXP (var X)) => EXP,
+  (substitute (var X) EXP (var Y)) /\ (bnot (mequals X Y)) => (var Y),
+
+  (substitute (var X) EXP (plus EXP1 EXP2)) => (plus (substitute (var X) EXP EXP1) (substitute (var X) EXP EXP2)),
+  (substitute (var X) EXP (times EXP1 EXP2)) => (times (substitute (var X) EXP EXP1) (substitute (var X) EXP EXP2)),
+  (substitute (var X) EXP (minus EXP1 EXP2)) => (minus (substitute (var X) EXP EXP1) (substitute (var X) EXP EXP2)),
+  (substitute (var X) EXP (less EXP1 EXP2)) => (less (substitute (var X) EXP EXP1) (substitute (var X) EXP EXP2)),
+  (substitute (var X) EXP (le EXP1 EXP2)) => (le (substitute (var X) EXP EXP1) (substitute (var X) EXP EXP2)),
+  (substitute (var X) EXP (not EXP1)) => (not (substitute (var X) EXP EXP1)),
+  (substitute (var X) EXP (ite EXP1 EXP2 EXP3)) => (ite (substitute (var X) EXP EXP1) (substitute (var X) EXP EXP2) (substitute (var X) EXP EXP3)),
+
+  (substitute (var X) EXP (assign (var Y) EXP1)) => (assign (var Y) (substitute (var X) EXP EXP1)),
+  (substitute (var X) EXP (while EXP1 EXP2)) => (while (substitute (var X) EXP EXP1) (substitute (var X) EXP EXP2)),
+  (substitute (var X) EXP (seq EXP1 EXP2)) => (seq (substitute (var X) EXP EXP1) (substitute (var X) EXP EXP2)),
+
+  (substitute (var X) EXP (app EXP1 EXP2)) => (app (substitute (var X) EXP EXP1) (substitute (var X) EXP EXP2)),
+
+  (substitute (var X) EXP1 (lam (var X) EXP)) => (lam (var X) EXP),
+  (substitute (var X) EXP1 (lam (var Y) EXP)) /\ (bnot (mequals X Y)) => (lam (var Y) (substitute (var X) EXP1 EXP)),
+
+  (substitute (var X) EXP1 (miu (var X) EXP)) => (miu (var X) EXP),
+  (substitute (var X) EXP1 (miu (var Y) EXP)) /\ (bnot (mequals X Y)) => (miu (var Y) (substitute (var X) EXP1 EXP))
+  ;  
+
+
+constrained-rewrite-system sbounded_language
+
+  (Q REST ENV SZ) /\ (bnot (mle SZ 15)) => crash,
+
+  (Q (push (var X) REST) ENV SZ) /\ (mle SZ 15) => (Q (push (lookup ENV X) REST) ENV SZ),
+
+  (Q (push (plus FNV EXP) REST) ENV SZ) /\ (mle SZ 15) => (Q (push FNV (push (plushl EXP) REST)) ENV (mplus SZ 1)),
+  (Q (push I (push (plushl EXP) REST)) ENV SZ) /\ (mle SZ 15) => (Q (push (plus I EXP) REST) ENV (mminus SZ 1)),
+  (Q (push (plus I FNV) REST) ENV SZ) /\ (mle SZ 15) => (Q (push FNV (push (plushr I) REST)) ENV (mplus SZ 1)),
+  (Q (push J (push (plushr I) REST)) ENV SZ) /\ (mle SZ 15) => (Q (push (plus I J) REST) ENV (mminus SZ 1)),
+  (Q (push (plus I J) REST) ENV SZ) /\ (mle SZ 15) => (Q (push (mplus I J) REST) ENV SZ),
+
+  (Q (push (times FNV EXP) REST) ENV SZ) /\ (mle SZ 15) => (Q (push FNV (push (timeshl EXP) REST)) ENV (mplus SZ 1)),
+  (Q (push I (push (timeshl EXP) REST)) ENV SZ) /\ (mle SZ 15) => (Q (push (times I EXP) REST) ENV (mminus SZ 1)),
+  (Q (push (times I FNV) REST) ENV SZ) /\ (mle SZ 15) => (Q (push FNV (push (timeshr I) REST)) ENV (mplus SZ 1)),
+  (Q (push J (push (timeshr I) REST)) ENV SZ) /\ (mle SZ 15) => (Q (push (times I J) REST) ENV (mminus SZ 1)),
+  (Q (push (times I J) REST) ENV SZ) /\ (mle SZ 15) => (Q (push (mtimes I J) REST) ENV SZ),
+
+  (Q (push (minus FNV EXP) REST) ENV SZ) /\ (mle SZ 15) => (Q (push FNV (push (minushl EXP) REST)) ENV (mplus SZ 1)),
+  (Q (push I (push (minushl EXP) REST)) ENV SZ) /\ (mle SZ 15) => (Q (push (minus I EXP) REST) ENV (mminus SZ 1)),
+  (Q (push (minus I FNV) REST) ENV SZ) /\ (mle SZ 15) => (Q (push FNV (push (minushr I) REST)) ENV (mplus SZ 1)),
+  (Q (push J (push (minushr I) REST)) ENV SZ) /\ (mle SZ 15) => (Q (push (minus I J) REST) ENV (mminus SZ 1)),
+  (Q (push (minus I J) REST) ENV SZ) /\ (mle SZ 15) => (Q (push (mminus I J) REST) ENV SZ),
+
+  (Q (push (less FNV EXP) REST) ENV SZ) /\ (mle SZ 15) => (Q (push FNV (push (lesshl EXP) REST)) ENV (mplus SZ 1)),
+  (Q (push I (push (lesshl EXP) REST)) ENV SZ) /\ (mle SZ 15) => (Q (push (less I EXP) REST) ENV (mminus SZ 1)),
+  (Q (push (less I FNV) REST) ENV SZ) /\ (mle SZ 15) => (Q (push FNV (push (lesshr I) REST)) ENV (mplus SZ 1)),
+  (Q (push J (push (lesshr I) REST)) ENV SZ) /\ (mle SZ 15) => (Q (push (less I J) REST) ENV (mminus SZ 1)),
+  (Q (push (less I J) REST) ENV SZ) /\ (mle SZ 15) => (Q (push (mless I J) REST) ENV SZ),
+
+  (Q (push (le FNV EXP) REST) ENV SZ) /\ (mle SZ 15) => (Q (push FNV (push (lehl EXP) REST)) ENV (mplus SZ 1)),
+  (Q (push I (push (lehl EXP) REST)) ENV SZ) /\ (mle SZ 15) => (Q (push (le I EXP) REST) ENV (mminus SZ 1)),
+  (Q (push (le I FNV) REST) ENV SZ) /\ (mle SZ 15) => (Q (push FNV (push (lehr I) REST)) ENV (mplus SZ 1)),
+  (Q (push J (push (lehr I) REST)) ENV SZ) /\ (mle SZ 15) => (Q (push (le I J) REST) ENV (mminus SZ 1)),
+  (Q (push (le I J) REST) ENV SZ) /\ (mle SZ 15) => (Q (push (mle I J) REST) ENV SZ),
+
+  (Q (push (not B) REST) ENV SZ) /\ (mle SZ 15) => (Q (push (bnot B) REST) ENV SZ),
+  (Q (push (not FNV) REST) ENV SZ) /\ (mle SZ 15) => (Q (push FNV (push noth REST)) ENV (mplus SZ 1)),
+  (Q (push B (push noth REST)) ENV SZ) /\ (mle SZ 15) => (Q (push (not B) REST) ENV (mminus SZ 1)),
+
+  (Q (push (ite FNV EXP1 EXP2) REST) ENV SZ) /\ (mle SZ 15) => (Q (push FNV (push (iteh EXP1 EXP2) REST)) ENV (mplus SZ 1)),
+  (Q (push B (push (iteh EXP1 EXP2) REST)) ENV SZ) /\ (mle SZ 15) => (Q (push (ite B EXP1 EXP2) REST) ENV (mminus SZ 1)),
+  (Q (push (ite true EXP1 EXP2) REST) ENV SZ) /\ (mle SZ 15) => (Q (push EXP1 REST) ENV SZ),
+  (Q (push (ite false EXP1 EXP2) REST) ENV SZ) /\ (mle SZ 15) => (Q (push EXP2 REST) ENV SZ),
+
+  (Q (push (assign (var X) I) REST) ENV SZ) /\ (mle SZ 15) => (Q (push I REST) (update ENV X I) SZ),
+  (Q (push (assign (var X) FNV) REST) ENV SZ) /\ (mle SZ 15) => (Q (push FNV (push (assignh (var X)) REST)) ENV (mplus SZ 1)),
+  (Q (push I (push (assignh (var X)) REST)) ENV SZ) /\ (mle SZ 15) => (Q (push (assign (var X) I) REST) ENV (mminus SZ 1)),
+
+  (Q (push (seq VF EXP2) REST) ENV SZ) /\ (mle SZ 15) => (Q (push EXP2 REST) ENV SZ),
+  (Q (push (seq FNV EXP2) REST) ENV SZ) /\ (mle SZ 15) => (Q (push FNV (push (seqh EXP2) REST)) ENV (mplus SZ 1)),
+  (Q (push VF (push (seqh EXP2) REST)) ENV SZ) /\ (mle SZ 15) => (Q (push (seq VF EXP2) REST) ENV (mminus SZ 1)),
+
+  (Q (push (while EXP1 EXP2) REST) ENV SZ) /\ (mle SZ 15) => (Q (push (ite EXP1 (seq EXP2 (while EXP1 EXP2)) skip) REST) ENV SZ),
+  (Q (push skip REST) ENV SZ) /\ (mle SZ 15) => (Q (push 0 REST) ENV SZ),
+
+  (Q (push (app FNV EXP) REST) ENV SZ) /\ (mle SZ 15) => (Q (push FNV (push (apphl EXP) REST)) ENV (mplus SZ 1)),
+  (Q (push (lam (var X) EXP1) (push (apphl EXP) REST)) ENV SZ) /\ (mle SZ 15) => (Q (push (app (lam (var X) EXP1) EXP) REST) ENV (mminus SZ 1)),
+  (Q (push (app (lam (var X) EXP1) FNV) REST) ENV SZ) /\ (mle SZ 15) => (Q (push FNV (push (apphr (lam (var X) EXP1)) REST)) ENV (mplus SZ 1)),
+  (Q (push VF (push (apphr (lam (var X) EXP1)) REST)) ENV SZ) /\ (mle SZ 15) => (Q (push (app (lam (var X) EXP1) VF) REST) ENV (mminus SZ 1)),
+  (Q (push (app (lam (var X) EXP1) VF) REST) ENV SZ) /\ (mle SZ 15) => (Q (push (substitute (var X) VF EXP1) REST) ENV SZ),
+
+  (Q (push (miu (var X) EXP) REST) ENV SZ) /\ (mle SZ 15) => (Q (push (substitute (var X) (miu (var X) EXP) EXP) REST) ENV SZ)
+;
+
+
+constrained-rewrite-system language
+
+  (P (push (var X) REST) ENV) => (P (push (lookup ENV X) REST) ENV),
+
+  (P (push (plus FNV EXP) REST) ENV) => (P (push FNV (push (plushl EXP) REST)) ENV),
+  (P (push I (push (plushl EXP) REST)) ENV) => (P (push (plus I EXP) REST) ENV),
+  (P (push (plus I FNV) REST) ENV) => (P (push FNV (push (plushr I) REST)) ENV),
+  (P (push J (push (plushr I) REST)) ENV) => (P (push (plus I J) REST) ENV),
+  (P (push (plus I J) REST) ENV) => (P (push (mplus I J) REST) ENV),
+
+  (P (push (times FNV EXP) REST) ENV) => (P (push FNV (push (timeshl EXP) REST)) ENV),
+  (P (push I (push (timeshl EXP) REST)) ENV) => (P (push (times I EXP) REST) ENV),
+  (P (push (times I FNV) REST) ENV) => (P (push FNV (push (timeshr I) REST)) ENV),
+  (P (push J (push (timeshr I) REST)) ENV) => (P (push (times I J) REST) ENV),
+  (P (push (times I J) REST) ENV) => (P (push (mtimes I J) REST) ENV),
+
+  (P (push (minus FNV EXP) REST) ENV) => (P (push FNV (push (minushl EXP) REST)) ENV),
+  (P (push I (push (minushl EXP) REST)) ENV) => (P (push (minus I EXP) REST) ENV),
+  (P (push (minus I FNV) REST) ENV) => (P (push FNV (push (minushr I) REST)) ENV),
+  (P (push J (push (minushr I) REST)) ENV) => (P (push (minus I J) REST) ENV),
+  (P (push (minus I J) REST) ENV) => (P (push (mminus I J) REST) ENV),
+
+  (P (push (less FNV EXP) REST) ENV) => (P (push FNV (push (lesshl EXP) REST)) ENV),
+  (P (push I (push (lesshl EXP) REST)) ENV) => (P (push (less I EXP) REST) ENV),
+  (P (push (less I FNV) REST) ENV) => (P (push FNV (push (lesshr I) REST)) ENV),
+  (P (push J (push (lesshr I) REST)) ENV) => (P (push (less I J) REST) ENV),
+  (P (push (less I J) REST) ENV) => (P (push (mless I J) REST) ENV),
+
+  (P (push (le FNV EXP) REST) ENV) => (P (push FNV (push (lehl EXP) REST)) ENV),
+  (P (push I (push (lehl EXP) REST)) ENV) => (P (push (le I EXP) REST) ENV),
+  (P (push (le I FNV) REST) ENV) => (P (push FNV (push (lehr I) REST)) ENV),
+  (P (push J (push (lehr I) REST)) ENV) => (P (push (le I J) REST) ENV),
+  (P (push (le I J) REST) ENV) => (P (push (mle I J) REST) ENV),
+
+  (P (push (not B) REST) ENV) => (P (push (bnot B) REST) ENV),
+  (P (push (not FNV) REST) ENV) => (P (push FNV (push noth REST)) ENV),
+  (P (push B (push noth REST)) ENV) => (P (push (not B) REST) ENV),
+
+  (P (push (ite FNV EXP1 EXP2) REST) ENV) => (P (push FNV (push (iteh EXP1 EXP2) REST)) ENV),
+  (P (push B (push (iteh EXP1 EXP2) REST)) ENV) => (P (push (ite B EXP1 EXP2) REST) ENV),
+  (P (push (ite true EXP1 EXP2) REST) ENV) => (P (push EXP1 REST) ENV),
+  (P (push (ite false EXP1 EXP2) REST) ENV) => (P (push EXP2 REST) ENV),
+
+  (P (push (assign (var X) I) REST) ENV) => (P (push I REST) (update ENV X I)),
+  (P (push (assign (var X) FNV) REST) ENV) => (P (push FNV (push (assignh (var X)) REST)) ENV),
+  (P (push I (push (assignh (var X)) REST)) ENV) => (P (push (assign (var X) I) REST) ENV),
+
+  (P (push (seq VF EXP2) REST) ENV) => (P (push EXP2 REST) ENV),
+  (P (push (seq FNV EXP2) REST) ENV) => (P (push FNV (push (seqh EXP2) REST)) ENV),
+  (P (push VF (push (seqh EXP2) REST)) ENV) => (P (push (seq VF EXP2) REST) ENV),
+
+  (P (push (while EXP1 EXP2) REST) ENV) => (P (push (ite EXP1 (seq EXP2 (while EXP1 EXP2)) skip) REST) ENV),
+  (P (push skip REST) ENV) => (P (push 0 REST) ENV),
+
+  (P (push (app FNV EXP) REST) ENV) => (P (push FNV (push (apphl EXP) REST)) ENV),
+  (P (push (lam (var X) EXP1) (push (apphl EXP) REST)) ENV) => (P (push (app (lam (var X) EXP1) EXP) REST) ENV),
+  (P (push (app (lam (var X) EXP1) FNV) REST) ENV) => (P (push FNV (push (apphr (lam (var X) EXP1)) REST)) ENV),
+  (P (push VF (push (apphr (lam (var X) EXP1)) REST)) ENV) => (P (push (app (lam (var X) EXP1) VF) REST) ENV),
+  (P (push (app (lam (var X) EXP1) VF) REST) ENV) => (P (push (substitute (var X) VF EXP1) REST) ENV),
+
+  (P (push (miu (var X) EXP) REST) ENV) => (P (push (substitute (var X) (miu (var X) EXP) EXP) REST) ENV)
+;
+
+
+
+
+define reduce : Int Int Stack -> Stack by
+  (reduce I N REST) /\ (mgt I N) => REST,
+  (reduce I N REST) /\ (mle I N) => (push (plushr I) (reduce (mplus I 1) N REST))
+;
+
+
+//TOTAL SIMULATION : Works to prove f < fa (bounded)
+show-simulation [200, total] in language and sbounded_language :
+
+(pairfb
+
+  (P (push 
+    (app
+      (miu (var 3)
+        (lam (var 0)
+        (ite (le 0 (var 0))
+          (plus (var 0)
+            (app (var 3) (minus (var 0) 1)))
+          0
+          )))
+      N)
+  done) ENV1)
+
+  (Q (push 
+  (app (app (app
+    (miu (var 3)
+      (lam (var 0) (lam (var 1) (lam (var 2)
+      (ite (le (var 1) (var 0))
+        (app (app (app (var 3) (var 0)) (plus (var 1) 1)) (plus (var 2) (var 1)))
+        (var 2)
+        )))))
+    N) 0) 0)
+ done) ENV2 0)
+) /\ (band (mle 0 N)
+    true
+    //(mle N 1)
+    )
+
+,
+
+
+(pairfb
+
+  (P (push S (reduce I N done)) ENV1)
+
+  (Q (push 
+  (app (app (app
+    (miu (var 3)
+      (lam (var 0) (lam (var 1) (lam (var 2)
+      (ite (le (var 1) (var 0))
+        (app (app (app (var 3) (var 0)) (plus (var 1) 1)) (plus (var 2) (var 1)))
+        (var 2)
+        )))))
+    N) (plus (mminus I 1) 1)) (plus (mminus S X) X))
+  done) ENV2 SZ2)
+
+)  /\ (band
+          (band (band (mle 0 N)  (band true (mle (mplus SZ2 7) 15))) //at least half the stack is empty
+            true
+            //(mle N 2)
+            )
+          (band (mle I N) (mle 1 I)))
+
+,
+
+
+(pairfb
+
+  (P (push 
+    (app
+      (miu (var 3)
+        (lam (var 0)
+        (ite (le 0 (var 0))
+          (plus (var 0)
+            (app (var 3) (minus (var 0) 1)))
+          0
+          )))
+      (minus I 1))
+  (reduce I N done)) ENV1)
+
+  (Q (push 
+  (app (app (app
+    (miu (var 3)
+      (lam (var 0) (lam (var 1) (lam (var 2)
+      (ite (le (var 1) (var 0))
+        (app (app (app (var 3) (var 0)) (plus (var 1) 1)) (plus (var 2) (var 1)))
+        (var 2)
+        )))))
+    N) 0) 0)
+ done) ENV2 SZ2)
+)
+/\ (band
+  (band (band (mle 0 N)  (band true (mle (mplus SZ2 7) 15))) //at least half the stack is empty
+    true
+    //(mle N 2)
+    )
+  (band (mle I N) (mle 0 I)))
+
+
+with-base
+    (pairfb (P (push SUM done) ENV1) (Q (push SUM done) ENV4 SZ4))
+;
+
+!EOF!
+
+
+//PARTIAL SIMULATION : Successfully fails to prove fa < f (circularity #3 -- expansion part fails due to bounded stack)
+show-simulation [200, partial] in sbounded_language and sbounded_language :
+
+(pairbb
+
+  (Q (push 
+  (app (app (app
+    (miu (var 3)
+      (lam (var 0) (lam (var 1) (lam (var 2)
+      (ite (le (var 1) (var 0))
+        (app (app (app (var 3) (var 0)) (plus (var 1) 1)) (plus (var 2) (var 1)))
+        (var 2)
+        )))))
+    N) 0) 0)
+  done) ENV2 0)
+
+  (Q (push 
+    (app
+      (miu (var 3)
+        (lam (var 0)
+        (ite (le 0 (var 0))
+          (plus (var 0)
+            (app (var 3) (minus (var 0) 1)))
+          0
+          )))
+      N)
+  done) ENV1 0)
+
+) /\ (band (mle 0 N)
+    true
+    //(mle N 1)
+    )
+
+,
+
+
+(pairbb
+
+  (Q (push 
+  (app (app (app
+    (miu (var 3)
+      (lam (var 0) (lam (var 1) (lam (var 2)
+      (ite (le (var 1) (var 0))
+        (app (app (app (var 3) (var 0)) (plus (var 1) 1)) (plus (var 2) (var 1)))
+        (var 2)
+        )))))
+    N) (plus (mminus I 1) 1)) (plus (mminus S X) X))
+  done) ENV2 SZ2)
+
+  (Q (push S (reduce I N done)) ENV1 SZ1)
+
+)  /\ (band
+          (band (band (mle 0 N)  (band (mle (mplus SZ1 7) 15) (mle (mplus SZ2 7) 15))) //at least half the stack is empty
+            true
+            //(mle N 2)
+            )
+          (band (mle I N) (mle 1 I)))
+
+,
+
+
+(pairbb
+
+  (Q (push 
+  (app (app (app
+    (miu (var 3)
+      (lam (var 0) (lam (var 1) (lam (var 2)
+      (ite (le (var 1) (var 0))
+        (app (app (app (var 3) (var 0)) (plus (var 1) 1)) (plus (var 2) (var 1)))
+        (var 2)
+        )))))
+    N) 0) 0)
+ done) ENV2 SZ2)
+
+  (Q (push 
+    (app
+      (miu (var 3)
+        (lam (var 0)
+        (ite (le 0 (var 0))
+          (plus (var 0)
+            (app (var 3) (minus (var 0) 1)))
+          0
+          )))
+      (minus I 1))
+  (reduce I N done)) ENV1 SZ1)
+)
+/\ (band
+  (band (band (mle 0 N)  (band (mle (mplus SZ1 7) 15) (mle (mplus SZ2 7) 15))) //at least half the stack is empty
+    true
+    //(mle N 2)
+    )
+  (band (mle I N) (mle 0 I)))
+
+
+with-base
+    (pairbb (Q (push SUM done) ENV3 SZ3) (Q (push SUM done) ENV4 SZ4)),
+    (pairbb crash crash)
+;
+
+
+!EOF!
+
+
+//PARTIAL SIMULATION : Successfully fails to prove f < fa (circularity #3 -- expansion part fails due to bounded stack)
+show-simulation [200, partial] in sbounded_language and sbounded_language :
+
+(pairbb
+
+  (Q (push 
+    (app
+      (miu (var 3)
+        (lam (var 0)
+        (ite (le 0 (var 0))
+          (plus (var 0)
+            (app (var 3) (minus (var 0) 1)))
+          0
+          )))
+      N)
+  done) ENV1 0)
+
+  (Q (push 
+  (app (app (app
+    (miu (var 3)
+      (lam (var 0) (lam (var 1) (lam (var 2)
+      (ite (le (var 1) (var 0))
+        (app (app (app (var 3) (var 0)) (plus (var 1) 1)) (plus (var 2) (var 1)))
+        (var 2)
+        )))))
+    N) 0) 0)
+ done) ENV2 0)
+) /\ (band (mle 0 N)
+    true
+    //(mle N 1)
+    )
+
+,
+
+
+(pairbb
+
+  (Q (push S (reduce I N done)) ENV1 SZ1)
+
+  (Q (push 
+  (app (app (app
+    (miu (var 3)
+      (lam (var 0) (lam (var 1) (lam (var 2)
+      (ite (le (var 1) (var 0))
+        (app (app (app (var 3) (var 0)) (plus (var 1) 1)) (plus (var 2) (var 1)))
+        (var 2)
+        )))))
+    N) (plus (mminus I 1) 1)) (plus (mminus S X) X))
+  done) ENV2 SZ2)
+
+)  /\ (band
+          (band (band (mle 0 N)  (band (mle (mplus SZ1 7) 15) (mle (mplus SZ2 7) 15))) //at least half the stack is empty
+            true
+            //(mle N 2)
+            )
+          (band (mle I N) (mle 1 I)))
+
+,
+
+
+(pairbb
+
+  (Q (push 
+    (app
+      (miu (var 3)
+        (lam (var 0)
+        (ite (le 0 (var 0))
+          (plus (var 0)
+            (app (var 3) (minus (var 0) 1)))
+          0
+          )))
+      (minus I 1))
+  (reduce I N done)) ENV1 SZ1)
+
+  (Q (push 
+  (app (app (app
+    (miu (var 3)
+      (lam (var 0) (lam (var 1) (lam (var 2)
+      (ite (le (var 1) (var 0))
+        (app (app (app (var 3) (var 0)) (plus (var 1) 1)) (plus (var 2) (var 1)))
+        (var 2)
+        )))))
+    N) 0) 0)
+ done) ENV2 SZ2)
+)
+/\ (band
+  (band (band (mle 0 N)  (band (mle (mplus SZ1 7) 15) (mle (mplus SZ2 7) 15))) //at least half the stack is empty
+    true
+    //(mle N 2)
+    )
+  (band (mle I N) (mle 0 I)))
+
+
+with-base
+    (pairbb (Q (push SUM done) ENV3 SZ3) (Q (push SUM done) ENV4 SZ4)),
+    (pairbb crash crash)
+;
+
+
+!EOF!
+
+//TOTAL SIMULATION : Successfully fails to prove f < fa (circularity #3 -- expansion part fails due to bounded stack)
+show-simulation [200, total] in sbounded_language and sbounded_language :
+
+(pairbb
+
+  (Q (push 
+    (app
+      (miu (var 3)
+        (lam (var 0)
+        (ite (le 0 (var 0))
+          (plus (var 0)
+            (app (var 3) (minus (var 0) 1)))
+          0
+          )))
+      N)
+  done) ENV1 0)
+
+  (Q (push 
+  (app (app (app
+    (miu (var 3)
+      (lam (var 0) (lam (var 1) (lam (var 2)
+      (ite (le (var 1) (var 0))
+        (app (app (app (var 3) (var 0)) (plus (var 1) 1)) (plus (var 2) (var 1)))
+        (var 2)
+        )))))
+    N) 0) 0)
+ done) ENV2 0)
+) /\ (band (mle 0 N)
+    true
+    //(mle N 1)
+    )
+
+,
+
+
+(pairbb
+
+  (Q (push S (reduce I N done)) ENV1 SZ1)
+
+  (Q (push 
+  (app (app (app
+    (miu (var 3)
+      (lam (var 0) (lam (var 1) (lam (var 2)
+      (ite (le (var 1) (var 0))
+        (app (app (app (var 3) (var 0)) (plus (var 1) 1)) (plus (var 2) (var 1)))
+        (var 2)
+        )))))
+    N) (plus (mminus I 1) 1)) (plus (mminus S X) X))
+  done) ENV2 SZ2)
+
+)  /\ (band
+          (band (band (mle 0 N)  (band (mle (mplus SZ1 7) 15) (mle (mplus SZ2 7) 15))) //at least half the stack is empty
+            true
+            //(mle N 2)
+            )
+          (band (mle I N) (mle 1 I)))
+
+,
+
+
+(pairbb
+
+  (Q (push 
+    (app
+      (miu (var 3)
+        (lam (var 0)
+        (ite (le 0 (var 0))
+          (plus (var 0)
+            (app (var 3) (minus (var 0) 1)))
+          0
+          )))
+      (minus I 1))
+  (reduce I N done)) ENV1 SZ1)
+
+  (Q (push 
+  (app (app (app
+    (miu (var 3)
+      (lam (var 0) (lam (var 1) (lam (var 2)
+      (ite (le (var 1) (var 0))
+        (app (app (app (var 3) (var 0)) (plus (var 1) 1)) (plus (var 2) (var 1)))
+        (var 2)
+        )))))
+    N) 0) 0)
+ done) ENV2 SZ2)
+)
+/\ (band
+  (band (band (mle 0 N)  (band (mle (mplus SZ1 7) 15) (mle (mplus SZ2 7) 15))) //at least half the stack is empty
+    true
+    //(mle N 2)
+    )
+  (band (mle I N) (mle 0 I)))
+
+
+with-base
+    (pairbb (Q (push SUM done) ENV3 SZ3) (Q (push SUM done) ENV4 SZ4)),
+    (pairbb crash crash)
+;

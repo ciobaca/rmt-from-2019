@@ -1,0 +1,316 @@
+/*
+*/
+
+sorts
+      Var,
+      Code,
+      Stack,
+      Map / "(Array Int Int)",
+      Cfg,
+      State,
+      Exp,
+      NonValExp,
+      ValExp
+    ;
+
+subsort Bool < ValExp;
+subsort Int < ValExp;
+subsort Var < NonValExp;
+subsort ValExp < Exp;
+subsort NonValExp < Exp;
+
+signature
+  
+  P : Exp Map -> Cfg,
+  pair : Cfg Cfg -> State,
+
+  var : Int -> Var,
+  update : Map Int Int -> Map / "store",
+  lookup  : Map Int -> Int / "select",
+
+  done : -> Stack,
+  push : Exp Stack -> Stack,
+
+  plus : Exp Exp -> NonValExp,
+  plushl : Exp -> NonValExp,
+  plushr : Exp -> NonValExp,
+  times : Exp Exp -> NonValExp,
+  timeshl : Exp -> NonValExp,
+  timeshr : Exp -> NonValExp,
+  minus : Exp Exp -> NonValExp,
+  minushl : Exp -> NonValExp,
+  minushr : Exp -> NonValExp,
+  le : Exp Exp -> NonValExp,
+  lehl : Exp -> NonValExp,
+  lehr : Exp -> NonValExp,
+  less : Exp Exp -> NonValExp,
+  lesshl : Exp -> NonValExp,
+  lesshr : Exp -> NonValExp,
+  ite : Exp Exp Exp -> NonValExp,
+  iteh : Exp Exp -> NonValExp,
+  not : Exp -> NonValExp,
+  noth : -> NonValExp,
+
+  assign : Var Exp -> NonValExp,
+  assignh : Var -> NonValExp,
+  while : Exp Exp -> NonValExp,
+  skip : -> NonValExp,
+  seq : Exp Exp -> NonValExp,
+  seqh : Exp -> NonValExp,
+
+  emptylist : -> ValExp,
+  cons : Exp Exp -> ValExp,
+  repeat : Exp -> NonValExp,
+  repeath : -> NonValExp,
+  map : Exp Exp -> NonValExp,
+  maphl : Exp -> NonValExp,
+  maphr : Exp -> NonValExp,
+  take : Exp Exp -> NonValExp,
+  takehl : Exp -> NonValExp,
+  takehr : Exp -> NonValExp,
+  sfoldl : Exp Exp Exp -> NonValExp,
+  sfoldlh1 : Exp Exp -> NonValExp,
+  sfoldlh2 : Exp Exp -> NonValExp,
+  sfoldlh3 : Exp Exp -> NonValExp,
+  sfoldlh4 : Exp Exp -> NonValExp,
+
+  app : Exp Exp -> NonValExp,
+  apphl : Exp -> NonValExp,
+  apphr : Exp -> NonValExp,
+  miu : Var Exp -> NonValExp,
+  lam : Var Exp -> ValExp
+;
+
+variables
+  X : Int,
+  Y : Int,
+  Z : Int,
+  I : Int,
+  J : Int,
+  N : Int,
+  SUM : Int,
+  A : Int,
+
+  B : Bool,
+
+  REST : Stack,
+  ENV : Map,
+  ENV1 : Map,
+  ENV2 : Map,
+  ENV3 : Map,
+  ENV4 : Map,
+
+  EXP : Exp,
+  EXP1 : Exp,
+  EXP2 : Exp,
+  EXP3 : Exp,
+  FNV : NonValExp,
+  VF : ValExp;
+
+/*
+define eqId : Id Id -> Bool by
+  eqId x x = true,
+  eqId y y = true,
+  eqId z z = true,
+  eqId x y = false,
+  eqId x z = false,
+   ...
+*/
+
+define substitute : Var Exp Exp -> Exp by
+  (substitute (var X) EXP I) => I,
+  (substitute (var X) EXP B) => B,
+  (substitute (var X) EXP (var X)) => EXP,
+  (substitute (var X) EXP (var Y)) /\ (bnot (mequals X Y)) => (var Y),
+
+  (substitute (var X) EXP (plus EXP1 EXP2)) => (plus (substitute (var X) EXP EXP1) (substitute (var X) EXP EXP2)),
+  (substitute (var X) EXP (times EXP1 EXP2)) => (times (substitute (var X) EXP EXP1) (substitute (var X) EXP EXP2)),
+  (substitute (var X) EXP (minus EXP1 EXP2)) => (minus (substitute (var X) EXP EXP1) (substitute (var X) EXP EXP2)),
+  (substitute (var X) EXP (less EXP1 EXP2)) => (less (substitute (var X) EXP EXP1) (substitute (var X) EXP EXP2)),
+  (substitute (var X) EXP (le EXP1 EXP2)) => (le (substitute (var X) EXP EXP1) (substitute (var X) EXP EXP2)),
+  (substitute (var X) EXP (not EXP1)) => (not (substitute (var X) EXP EXP1)),
+  (substitute (var X) EXP (ite EXP1 EXP2 EXP3)) => (ite (substitute (var X) EXP EXP1) (substitute (var X) EXP EXP2) (substitute (var X) EXP EXP3)),
+
+  (substitute (var X) EXP (assign (var Y) EXP1)) => (assign (var Y) (substitute (var X) EXP EXP1)),
+  (substitute (var X) EXP (while EXP1 EXP2)) => (while (substitute (var X) EXP EXP1) (substitute (var X) EXP EXP2)),
+  (substitute (var X) EXP (seq EXP1 EXP2)) => (seq (substitute (var X) EXP EXP1) (substitute (var X) EXP EXP2)),
+  (substitute (var X) EXP skip) => skip,
+
+  (substitute (var X) EXP emptylist) => emptylist,
+  (substitute (var X) EXP (cons EXP1 EXP2)) => (cons (substitute (var X) EXP EXP1) (substitute (var X) EXP EXP2)),
+  (substitute (var X) EXP (repeat EXP1)) => (repeat (substitute (var X) EXP EXP1)),
+  (substitute (var X) EXP (map EXP1 EXP2)) => (map (substitute (var X) EXP EXP1) (substitute (var X) EXP EXP2)),
+  (substitute (var X) EXP (take EXP1 EXP2)) => (take (substitute (var X) EXP EXP1) (substitute (var X) EXP EXP2)),
+  (substitute (var X) EXP (sfoldl EXP1 EXP2 EXP3)) => (sfoldl (substitute (var X) EXP EXP1) (substitute (var X) EXP EXP2) (substitute (var X) EXP EXP3)),
+
+  (substitute (var X) EXP (app EXP1 EXP2)) => (app (substitute (var X) EXP EXP1) (substitute (var X) EXP EXP2)),
+
+  (substitute (var X) EXP1 (lam (var X) EXP)) => (lam (var X) EXP),
+  (substitute (var X) EXP1 (lam (var Y) EXP)) /\ (bnot (mequals X Y)) => (lam (var Y) (substitute (var X) EXP1 EXP)),
+
+  (substitute (var X) EXP1 (miu (var X) EXP)) => (miu (var X) EXP),
+  (substitute (var X) EXP1 (miu (var Y) EXP)) /\ (bnot (mequals X Y)) => (miu (var Y) (substitute (var X) EXP1 EXP))
+  ;  
+
+
+constrained-rewrite-system fun1
+
+  (P (push (var X) REST) ENV) => (P (push (lookup ENV X) REST) ENV),
+
+  (P (push (plus FNV EXP) REST) ENV) => (P (push FNV (push (plushl EXP) REST)) ENV),
+  (P (push I (push (plushl EXP) REST)) ENV) => (P (push (plus I EXP) REST) ENV),
+  (P (push (plus I FNV) REST) ENV) => (P (push FNV (push (plushr I) REST)) ENV),
+  (P (push J (push (plushr I) REST)) ENV) => (P (push (plus I J) REST) ENV),
+  (P (push (plus I J) REST) ENV) => (P (push (mplus I J) REST) ENV),
+
+  (P (push (times FNV EXP) REST) ENV) => (P (push FNV (push (timeshl EXP) REST)) ENV),
+  (P (push I (push (timeshl EXP) REST)) ENV) => (P (push (times I EXP) REST) ENV),
+  (P (push (times I FNV) REST) ENV) => (P (push FNV (push (timeshr I) REST)) ENV),
+  (P (push J (push (timeshr I) REST)) ENV) => (P (push (times I J) REST) ENV),
+  (P (push (times I J) REST) ENV) => (P (push (mtimes I J) REST) ENV),
+
+  (P (push (minus FNV EXP) REST) ENV) => (P (push FNV (push (minushl EXP) REST)) ENV),
+  (P (push I (push (minushl EXP) REST)) ENV) => (P (push (minus I EXP) REST) ENV),
+  (P (push (minus I FNV) REST) ENV) => (P (push FNV (push (minushr I) REST)) ENV),
+  (P (push J (push (minushr I) REST)) ENV) => (P (push (minus I J) REST) ENV),
+  (P (push (minus I J) REST) ENV) => (P (push (mminus I J) REST) ENV),
+
+  (P (push (less FNV EXP) REST) ENV) => (P (push FNV (push (lesshl EXP) REST)) ENV),
+  (P (push I (push (lesshl EXP) REST)) ENV) => (P (push (less I EXP) REST) ENV),
+  (P (push (less I FNV) REST) ENV) => (P (push FNV (push (lesshr I) REST)) ENV),
+  (P (push J (push (lesshr I) REST)) ENV) => (P (push (less I J) REST) ENV),
+  (P (push (less I J) REST) ENV) => (P (push (mless I J) REST) ENV),
+
+  (P (push (le FNV EXP) REST) ENV) => (P (push FNV (push (lehl EXP) REST)) ENV),
+  (P (push I (push (lehl EXP) REST)) ENV) => (P (push (le I EXP) REST) ENV),
+  (P (push (le I FNV) REST) ENV) => (P (push FNV (push (lehr I) REST)) ENV),
+  (P (push J (push (lehr I) REST)) ENV) => (P (push (le I J) REST) ENV),
+  (P (push (le I J) REST) ENV) => (P (push (mle I J) REST) ENV),
+
+  (P (push (not B) REST) ENV) => (P (push (bnot B) REST) ENV),
+  (P (push (not FNV) REST) ENV) => (P (push FNV (push noth REST)) ENV),
+  (P (push B (push noth REST)) ENV) => (P (push (not B) REST) ENV),
+
+  (P (push (ite FNV EXP1 EXP2) REST) ENV) => (P (push FNV (push (iteh EXP1 EXP2) REST)) ENV),
+  (P (push B (push (iteh EXP1 EXP2) REST)) ENV) => (P (push (ite B EXP1 EXP2) REST) ENV),
+  (P (push (ite true EXP1 EXP2) REST) ENV) => (P (push EXP1 REST) ENV),
+  (P (push (ite false EXP1 EXP2) REST) ENV) => (P (push EXP2 REST) ENV),
+
+  (P (push (assign (var X) I) REST) ENV) => (P (push I REST) (update ENV X I)),
+  (P (push (assign (var X) FNV) REST) ENV) => (P (push FNV (push (assignh (var X)) REST)) ENV),
+  (P (push I (push (assignh (var X)) REST)) ENV) => (P (push (assign (var X) I) REST) ENV),
+
+  (P (push (seq VF EXP2) REST) ENV) => (P (push EXP2 REST) ENV),
+  (P (push (seq FNV EXP2) REST) ENV) => (P (push FNV (push (seqh EXP2) REST)) ENV),
+  (P (push VF (push (seqh EXP2) REST)) ENV) => (P (push (seq I EXP2) REST) ENV),
+
+  (P (push (while EXP1 EXP2) REST) ENV) => (P (push (ite EXP1 (seq EXP2 (while EXP1 EXP2)) skip) REST) ENV),
+  (P (push skip REST) ENV) => (P (push 0 REST) ENV),
+
+  (P (push (app FNV EXP) REST) ENV) => (P (push FNV (push (apphl EXP) REST)) ENV),
+  (P (push (lam (var X) EXP1) (push (apphl EXP) REST)) ENV) => (P (push (app (lam (var X) EXP1) EXP) REST) ENV),
+  (P (push (app (lam (var X) EXP1) FNV) REST) ENV) => (P (push FNV (push (apphr (lam (var X) EXP1)) REST)) ENV),
+  (P (push VF (push (apphr (lam (var X) EXP1)) REST)) ENV) => (P (push (app (lam (var X) EXP1) VF) REST) ENV),
+  (P (push (app (lam (var X) EXP1) VF) REST) ENV) => (P (push (substitute (var X) VF EXP1) REST) ENV),
+
+  (P (push (repeat FNV) REST) ENV) => (P (push FNV (push repeath REST)) ENV),
+  (P (push I (push repeath REST)) ENV) => (P (push (repeat I) REST) ENV),
+  (P (push (repeat I) REST) ENV) => (P (push (cons I (repeat I)) REST) ENV),
+
+  (P (push (map FNV EXP) REST) ENV) => (P (push FNV (push (maphl EXP) REST)) ENV),
+  (P (push (lam (var X) EXP1) (push (maphl EXP) REST)) ENV) => (P (push (map (lam (var X) EXP1) EXP) REST) ENV),
+  (P (push (map (lam (var X) EXP1) FNV) REST) ENV) => (P (push FNV (push (maphr (lam (var X) EXP1)) REST)) ENV),
+  (P (push VF (push (maphr (lam (var X) EXP1)) REST)) ENV) => (P (push (map (lam (var X) EXP1) VF) REST) ENV),
+  (P (push (map (lam (var X) EXP1) emptylist) REST) ENV) => (P (push emptylist REST) ENV),
+  (P (push (map (lam (var X) EXP1) (cons EXP2 EXP3)) REST) ENV) => (P (push (cons (app (lam (var X) EXP1) EXP2) (map (lam (var X) EXP1) EXP3)) REST) ENV),
+
+  (P (push (sfoldl FNV EXP1 EXP2) REST) ENV) => (P (push FNV (push (sfoldlh1 EXP1 EXP2) REST)) ENV),
+  (P (push (lam (var X) EXP) (push (sfoldlh1 EXP1 EXP2) REST)) ENV) => (P (push (sfoldl (lam (var X) EXP) EXP1 EXP2) REST) ENV),
+  (P (push (sfoldl (lam (var X) EXP) FNV EXP2) REST) ENV) => (P (push FNV (push (sfoldlh2 (lam (var X) EXP) EXP2) REST)) ENV),
+  (P (push I (push (sfoldlh2 (lam (var X) EXP) EXP2) REST)) ENV) => (P (push (sfoldl (lam (var X) EXP) I EXP2) REST) ENV),
+  (P (push (sfoldl (lam (var X) EXP) I FNV) REST) ENV) => (P (push FNV (push (sfoldlh3 (lam (var X) EXP) I) REST)) ENV),
+  (P (push VF (push (sfoldlh3 (lam (var X) EXP) I) REST)) ENV) => (P (push (sfoldl (lam (var X) EXP) I VF) REST) ENV),
+  (P (push (sfoldl (lam (var X) EXP) I emptylist) REST) ENV) => (P (push I REST) ENV),
+  (P (push (sfoldl (lam (var X) EXP) I (cons EXP2 EXP3)) REST) ENV) => (P (push (app (app (lam (var X) EXP) I) EXP2) (push (sfoldlh4 (lam (var X) EXP) EXP3) REST)) ENV),
+  (P (push J (push (sfoldlh4 (lam (var X) EXP) EXP3) REST)) ENV) => (P (push (sfoldl (lam (var X) EXP) J EXP3) REST) ENV),
+
+  (P (push (take FNV EXP) REST) ENV) => (P (push FNV (push (takehl EXP) REST)) ENV),
+  (P (push N (push (takehl EXP) REST)) ENV) => (P (push (take N EXP) REST) ENV),
+  (P (push (take N FNV) REST) ENV) => (P (push FNV (push (takehr N) REST)) ENV),
+  (P (push VF (push (takehr N) REST)) ENV) => (P (push (take N VF) REST) ENV),
+  (P (push (take N emptylist) REST) ENV) => (P (push emptylist REST) ENV),
+  (P (push (take N (cons EXP1 EXP2)) REST) ENV) /\ (mle N 0) => (P (push emptylist REST) ENV),
+  (P (push (take N (cons EXP1 EXP2)) REST) ENV) /\ (bnot (mle N 0)) => (P (push (cons EXP1 (take (minus N 1) EXP2)) REST) ENV),
+
+  (P (push (miu (var X) EXP) REST) ENV) => (P (push (substitute (var X) (miu (var X) EXP) EXP) REST) ENV)
+
+;
+
+/*
+rundefined in fun1 :
+
+(P (push 
+  (sfoldl (lam (var 0) (lam (var 1) (plus (var 0) (var 1)))) 0 (take 2 (map (lam (var 0) (plus (var 0) 1)) (cons 7 (cons 2 (cons 5 emptylist))))))
+ done) ENV)
+;
+
+!EOF!
+*/
+
+/*
+rundefined in fun1 :
+
+(P (push 
+  (sfoldl (lam (var 0) (lam (var 1) (plus (var 0) (var 1)))) 0 (map (lam (var 0) (plus (var 0) 1)) (take 2 (cons 7 (cons 2 (cons 5 emptylist))))) )
+ done) ENV)
+;
+
+!EOF!
+*/
+
+//Works to show simulation of map-take vs take-map
+//Mapped function is (+1). List is an infinite stream of X.
+/*
+show-simulation [200, total] in fun1 and fun1 :
+
+(pair
+
+(P (push 
+  (sfoldl (lam (var 0) (lam (var 1) (plus (var 0) (var 1)))) A (take (minus N 1) (map (lam (var 0) (plus (var 0) 1)) (repeat X))))
+ done) ENV1)
+
+(P (push 
+  (sfoldl (lam (var 0) (lam (var 1) (plus (var 0) (var 1)))) A (map (lam (var 0) (plus (var 0) 1)) (take (minus N 1) (repeat X))))
+ done) ENV2)
+
+  )
+
+with-base
+     (pair (P (push SUM done) ENV3) (P (push SUM done) ENV4));
+
+!EOF!
+*/
+
+//Works to show simulation of map-take vs take-map
+//Mapped function increments a counter and returns (+counter). List is an infinite stream of X.
+show-simulation [200, total] in fun1 and fun1 :
+
+(pair
+
+(P (push 
+  (sfoldl (lam (var 0) (lam (var 1) (plus (var 0) (var 1)))) A (take (minus N 1) (map (lam (var 0) (plus (var 0) (assign (var 2) (plus (var 2) 1)))) (repeat X))))
+ done) ENV1)
+
+(P (push 
+  (sfoldl (lam (var 0) (lam (var 1) (plus (var 0) (var 1)))) A (map (lam (var 0) (plus (var 0) (assign (var 2) (plus (var 2) 1)))) (take (minus N 1) (repeat X))))
+ done) ENV2)
+
+  ) /\ (mequals
+        (lookup ENV1 2)
+        (lookup ENV2 2)
+        )
+
+with-base
+     (pair (P (push SUM done) ENV3) (P (push SUM done) ENV4));
+
+!EOF!

@@ -1,0 +1,19 @@
+sorts Nat, Stmt;
+
+signature
+  z : -> Nat,
+  s : Nat -> Nat,
+  p : Nat Nat -> Nat,
+  pair : Nat Nat -> Stmt;
+
+variables X:Nat, Y:Nat, Z:Nat;
+
+constrained-rewrite-system addition
+
+  (p 0 X) => X,
+  (p (s X) Y) => (s (p X Y));
+
+show-simulation [20] in addition and addition:
+ (pair (p X Y) (p Y X))
+ with-base (pair Z Z);
+

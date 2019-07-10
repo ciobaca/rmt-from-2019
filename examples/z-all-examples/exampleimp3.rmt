@@ -1,0 +1,442 @@
+smt-prelude
+"(declare-fun uifun (Int Int) Int)
+ (declare-datatypes () ((Var varX varY varZ varC1 varC2 varV1 varV2)))
+ (define-fun sumUpTo ((n Int)) Int
+    (div (* n (+ n 1)) 2)
+ )
+ (define-fun even ((n Int)) Bool
+    (= (mod n 2) 0)
+ )
+ (define-fun sum ((a Int) (b Int)) Int
+   (- (sumUpTo b) (sumUpTo (- a 1))))
+ (define-fun sumofsquaresUpTo ((n Int)) Int
+   (div (* n (+ n 1) (+ n n 1)) 6))
+ (define-fun sumofsquares ((a Int) (b Int)) Int
+   (- (sumofsquaresUpTo b) (sumofsquaresUpTo (- a 1))))
+"
+
+sorts IntP,
+      BoolP,
+      Var / "Var",
+      AExp,
+      BExp,
+      NonValAExp,
+      NonValBExp,
+      Stmt,
+      Code,
+      CompStack,
+      Map / "(Array Var Int)",
+      CfgI
+    ;
+
+// after declaring all sorts,
+// we must declare all subsort relations
+subsort Int < IntP;
+subsort IntP < AExp;
+subsort Var < NonValAExp;
+subsort NonValAExp < AExp;
+subsort NonValBExp < BExp;
+subsort AExp BExp Stmt < Code;
+subsort Bool < BoolP;
+subsort BoolP < BExp;
+subsort AExp < Stmt;
+subsort BExp < Stmt;
+
+/* next we must declare all function symbols */
+signature
+	meven : Int -> Bool / "even",
+	sum : Int Int -> Int / "sum",
+	sumofsquares : Int Int -> Int / "sumofsquares",
+
+	mapequals : Map Map -> Bool / "=",
+
+	// some program variables
+	x : -> Var / "varX",
+	y : -> Var / "varY",
+	z : -> Var / "varZ",
+
+	pV1 : -> Var / "varV1",
+	pV2 : -> Var / "varV2",
+	pC1 : -> Var / "varC1",
+	pC2 : -> Var / "varC2",
+	
+	pS1 : -> Stmt,
+	pE1 : -> NonValAExp,
+	iS1 : Int Int Int Int -> Int / "iS1",
+	iE1 : Int Int -> Int / "iE1",
+
+	// helper functions
+	synEq : Var Var -> Bool / "=",
+
+	update : Map Var Int -> Map / "store",
+	lookup  : Map Var -> IntP / "select",
+
+	// equality
+	iequals : AExp AExp -> NonValBExp,
+	iequalshl : AExp -> BExp,
+	iequalshr : AExp -> BExp,
+
+	// arithmetic and boolean expressions
+	plus : AExp AExp -> NonValAExp,
+	plushl : AExp -> AExp,
+    	plushr : AExp -> AExp,
+
+	// arithmetic and boolean expressions
+	times : AExp AExp -> NonValAExp,
+	timeshl : AExp -> AExp,
+    	timeshr : AExp -> AExp,
+
+	// arithmetic and boolean expressions
+	div : AExp AExp -> NonValAExp,
+	divhl : AExp -> AExp,
+    	divhr : AExp -> AExp,
+
+	// uninterpreted function Z3
+	muifun : Int Int -> Int / "uifun",
+
+	// uninterpreted function
+	uifun : AExp AExp -> NonValAExp,
+	uifunhl : AExp -> AExp,
+	uifunhr : AExp -> AExp,
+
+	minus : AExp AExp -> NonValAExp,
+	minushl : AExp -> AExp,
+    	minushr : AExp -> AExp,
+
+	pred : AExp -> NonValAExp,
+	predh : -> AExp,
+
+	succ : AExp -> NonValAExp,
+	succh : -> AExp,
+
+	le   : AExp AExp -> NonValBExp,
+    	lehl : AExp -> BExp,
+    	lehr : AExp -> BExp,
+
+	less   : AExp AExp -> NonValBExp,
+    	lesshl : AExp -> BExp,
+    	lesshr : AExp -> BExp,
+
+	ieven : AExp -> NonValBExp,
+	ievenh : -> AExp,
+
+	not : BExp -> NonValBExp,
+	noth : -> BExp,
+
+	// computation stack
+	done : -> CompStack,
+	push : Code CompStack -> CompStack,
+
+	// configuration
+	IC : CompStack Map -> CfgI,
+
+	// statements
+	assign : Var AExp -> Stmt,
+    	assignh : Var -> Stmt,
+
+	skip : -> Stmt,
+
+	seq : Stmt Stmt -> Stmt,
+
+	ite : BExp Stmt Stmt -> Stmt,
+	iteh : Stmt Stmt -> Stmt,
+
+	while : BExp Stmt -> Stmt,
+
+	for : Var AExp AExp Stmt -> Stmt,
+	forhl : Var AExp Stmt -> Stmt,
+	forhr : Var AExp Stmt -> Stmt;
+
+/* next we must declare all variables */
+variables
+	// necessary variables
+	X : Var,
+	Y : Var,
+	Z : Var,
+
+	N : Int,
+	SUM : Int,
+	I : Int,
+	J : Int,
+	M : Int,
+	PRIMM : Int,
+	PRIMMP : Int,
+	PRIMN : Int,
+ 	PRIMENV : Map,
+ 	PRIMENVP : Map,
+	MP : Int,
+
+	B : Bool,
+	BE : BExp,
+	BE1 : BExp,
+	BE2 : BExp,
+	AE : AExp,
+	AE1 : AExp,
+	AE2 : AExp,
+	NVAE : NonValAExp,
+	NVAE1 : NonValAExp,
+	NVAE2 : NonValAExp,
+	NVBE : NonValBExp,
+	NVBE1 : NonValBExp,
+	NVBE2 : NonValBExp,
+	S : Stmt,
+	S1 : Stmt,
+	S2 : Stmt,
+	S3 : Stmt,
+	S4 : Stmt,
+	REST : CompStack,
+	ENV : Map,
+	ENVP : Map,
+	ENV1 : Map,
+	ENV2 : Map;
+
+rewrite-system language
+// language
+ 	(IC (push X              REST) ENV) =>
+ 	(IC (push (lookup ENV X) REST) ENV),
+
+	(IC (push (pred N)            REST) ENV) =>
+	(IC (push (mminus N 1)    REST) ENV),
+
+	(IC (push (pred NVAE)       REST)  ENV) =>
+	(IC (push NVAE (push predh REST)) ENV),
+
+	(IC (push N (push predh REST)) ENV) =>
+	(IC (push (pred N)       REST)  ENV),
+
+
+	(IC (push (not B)  REST) ENV) =>
+	(IC (push (bnot B) REST) ENV),
+
+	(IC (push (not NVBE)       REST)  ENV) =>
+	(IC (push NVBE (push noth REST)) ENV),
+
+	(IC (push B (push noth REST)) ENV) =>
+	(IC (push (not B)       REST)  ENV),
+
+
+	(IC (push (ieven N) REST) ENV) =>
+	(IC (push (meven N) REST) ENV),
+
+	(IC (push (ieven NVAE)       REST)  ENV) =>
+	(IC (push NVAE (push ievenh REST)) ENV),
+
+	(IC (push N (push ievenh REST)) ENV) =>
+	(IC (push (ieven N)       REST)  ENV),
+
+
+	(IC (push (succ N)           REST) ENV) =>
+	(IC (push (mplus N 1)    REST) ENV),
+
+	(IC (push (succ NVAE)       REST)  ENV) =>
+	(IC (push NVAE (push succh REST)) ENV),
+
+	(IC (push N (push succh REST)) ENV) =>
+	(IC (push (succ N)       REST)  ENV),
+
+	(IC (push (assign X N) REST) ENV) =>
+        (IC REST       (update ENV X N)),
+    
+ 	(IC (push (assign X NVAE)       REST)  ENV) =>
+ 	(IC (push NVAE (push (assignh X) REST)) ENV),
+
+     	(IC (push N (push (assignh X) REST)) ENV) =>
+     	(IC (push (assign X N)        REST)  ENV),
+
+// sequential composition
+	(IC (push (seq S1 S2) REST)  ENV) =>
+	(IC (push S1 (push S2 REST)) ENV),
+
+	(IC (push skip REST) ENV) =>
+	(IC            REST  ENV),
+
+// conditional statement
+
+	(IC (push (ite NVBE S1 S2)       REST)  ENV) =>
+	(IC (push NVBE (push (iteh S1 S2) REST)) ENV),
+
+	(IC (push B (push (iteh S1 S2) REST)) ENV) =>
+	(IC (push (ite B S1 S2)       REST)  ENV),
+
+	(IC (push (ite true S1 S2) REST) ENV) =>
+	(IC (push S1                REST) ENV),
+
+ 	(IC (push (ite false S1 S2) REST) ENV) =>
+ 	(IC (push S2                 REST) ENV),
+
+// while statement
+ 	(IC (push (while BE S)                        REST) ENV) =>
+ 	(IC (push (ite BE (seq S (while BE S)) skip) REST) ENV),
+
+// addition operator
+ 	(IC (push (plus N M)     REST) ENV) =>
+ 	(IC (push (mplus N M)    REST) ENV),
+
+	(IC (push (plus NVAE1 AE2)        REST)  ENV) =>
+	(IC (push NVAE1 (push (plushl AE2) REST)) ENV),
+  
+ 	(IC (push N (push (plushl AE2) REST)) ENV) =>
+ 	(IC (push (plus N AE2)        REST)  ENV),
+
+ 	(IC (push (plus N NVAE2)        REST)  ENV) =>
+ 	(IC (push NVAE2 (push (plushr N) REST)) ENV),
+
+ 	(IC (push M (push (plushr N) REST)) ENV) =>
+ 	(IC (push (plus N M)        REST)  ENV),
+
+// multiplication operator
+ 	(IC (push (times N M)     REST) ENV) =>
+ 	(IC (push (mtimes N M)    REST) ENV),
+
+	(IC (push (times NVAE1 AE2)        REST)  ENV) =>
+	(IC (push NVAE1 (push (timeshl AE2) REST)) ENV),
+  
+ 	(IC (push N (push (timeshl AE2) REST)) ENV) =>
+ 	(IC (push (times N AE2)        REST)  ENV),
+
+ 	(IC (push (times N NVAE2)        REST)  ENV) =>
+ 	(IC (push NVAE2 (push (timeshr N) REST)) ENV),
+
+ 	(IC (push M (push (timeshr N) REST)) ENV) =>
+ 	(IC (push (times N M)        REST)  ENV),
+
+// division operator
+ 	(IC (push (div N M)     REST) ENV) =>
+ 	(IC (push (mdiv N M)    REST) ENV),
+
+	(IC (push (div NVAE1 AE2)        REST)  ENV) =>
+	(IC (push NVAE1 (push (divhl AE2) REST)) ENV),
+  
+ 	(IC (push N (push (divhl AE2) REST)) ENV) =>
+ 	(IC (push (div N AE2)        REST)  ENV),
+
+ 	(IC (push (div N NVAE2)        REST)  ENV) =>
+ 	(IC (push NVAE2 (push (divhr N) REST)) ENV),
+
+ 	(IC (push M (push (divhr N) REST)) ENV) =>
+ 	(IC (push (div N M)        REST)  ENV),
+
+// uninterpreted function
+ 	(IC (push (uifun N M)     REST) ENV) =>
+ 	(IC (push (muifun N M)    REST) ENV),
+
+	(IC (push (uifun NVAE1 AE2)        REST)  ENV) =>
+	(IC (push NVAE1 (push (uifunhl AE2) REST)) ENV),
+  
+ 	(IC (push N (push (uifunhl AE2) REST)) ENV) =>
+ 	(IC (push (uifun N AE2)        REST)  ENV),
+
+ 	(IC (push (uifun N NVAE2)        REST)  ENV) =>
+ 	(IC (push NVAE2 (push (uifunhr N) REST)) ENV),
+
+ 	(IC (push M (push (uifunhr N) REST)) ENV) =>
+ 	(IC (push (uifun N M)        REST)  ENV),
+
+// subtraction operator
+ 	(IC (push (minus N M)     REST) ENV) =>
+ 	(IC (push (mminus N M)    REST) ENV),
+
+	(IC (push (minus NVAE1 AE2)        REST)  ENV) =>
+	(IC (push NVAE1 (push (minushl AE2) REST)) ENV),
+  
+ 	(IC (push N (push (minushl AE2) REST)) ENV) =>
+ 	(IC (push (minus N AE2)        REST)  ENV),
+
+ 	(IC (push (minus N NVAE2)        REST)  ENV) =>
+ 	(IC (push NVAE2 (push (minushr N) REST)) ENV),
+
+ 	(IC (push M (push (minushr N) REST)) ENV) =>
+ 	(IC (push (minus N M)        REST)  ENV),
+
+// // for statement
+//  	(IC (push (for X NVAE1 NVAE2 S)        REST ) ENV) =>
+//  	(IC (push NVAE1 (push (forhl X NVAE2 S) REST)) ENV),
+
+//  	(IC (push N (push (forhl X NVAE2 S) REST)) ENV) =>
+//  	(IC (push (for X N NVAE2 S)        REST)  ENV),
+
+//  	(IC (push (for X N NVAE2 S)            REST ) ENV) =>
+//  	(IC (push NVAE2 (push (forhr X N S)     REST)) ENV),
+
+//  	(IC (push M (push (forhr X N S) REST)) ENV) =>
+//  	(IC (push (for X N M S)        REST)  ENV),
+
+// 	(IC (push (for X N M S)                                         REST) ENV) /\ (mle N M) =>
+// 	(IC (push (seq (assign X N) S) (push (for X (mplus N 1) M S) REST)) ENV),
+
+// 	(IC (push (for X N M S) REST) ENV) /\ (bnot (mle N M)) =>
+// 	(IC                       REST ENV),
+
+// equality operator
+
+ 	(IC (push (iequals N M)  REST) ENV) =>
+ 	(IC (push (mequals N M) REST) ENV),
+
+ 	(IC (push (iequals NVAE1 AE2)        REST)  ENV) =>
+ 	(IC (push NVAE1 (push (iequalshl AE2) REST)) ENV),
+
+ 	(IC (push N (push (iequalshl AE2) REST)) ENV) =>
+ 	(IC (push (iequals N AE2)        REST)  ENV),
+
+ 	(IC (push (iequals N NVAE2)        REST)  ENV) =>
+ 	(IC (push NVAE2 (push (iequalshr N) REST)) ENV),
+  
+ 	(IC (push M (push (iequalshr N) REST)) ENV) =>
+ 	(IC (push (iequals N M)       REST)  ENV),
+
+// less than or equal to operator2
+
+ 	(IC (push (le N M)  REST) ENV) =>
+ 	(IC (push (mle N M) REST) ENV),
+
+ 	(IC (push (le NVAE1 AE2)        REST)  ENV) =>
+ 	(IC (push NVAE1 (push (lehl AE2) REST)) ENV),
+
+ 	(IC (push N (push (lehl AE2) REST)) ENV) =>
+ 	(IC (push (le N AE2)        REST)  ENV),
+
+ 	(IC (push (le N NVAE2)        REST)  ENV) =>
+ 	(IC (push NVAE2 (push (lehr N) REST)) ENV),
+  
+ 	(IC (push M (push (lehr N) REST)) ENV) =>
+ 	(IC (push (le N M)       REST)  ENV),
+
+// strictly less than
+
+ 	(IC (push (less N M)  REST) ENV) =>
+ 	(IC (push (mless N M) REST) ENV),
+
+ 	(IC (push (less NVAE1 AE2)        REST)  ENV) =>
+ 	(IC (push NVAE1 (push (lesshl AE2) REST)) ENV),
+
+ 	(IC (push N (push (lesshl AE2) REST)) ENV) =>
+ 	(IC (push (less N AE2)        REST)  ENV),
+
+ 	(IC (push (less N NVAE2)        REST)  ENV) =>
+ 	(IC (push NVAE2 (push (lesshr N) REST)) ENV),
+  
+ 	(IC (push M (push (lesshr N) REST)) ENV) =>
+ 	(IC (push (less N M)       REST)  ENV)
+;
+
+constrained-rewrite-system circularities
+(IC 
+	(push 
+		(while (le y N) 
+		      (seq (assign x 0) 
+		          (seq (while (le x y) 
+			            (seq (assign x (plus x y)) 
+				        (assign z /* TODO fill this in */
+			(assign z (plus z (times y y))) 
+                          (assign y (plus y 1)))) 
+		REST) 
+        ENV) /\ (band (mle 0 N) 
+	             (mle (lookup ENV y) N))
+=>
+(IC 
+	REST 
+	(update (update ENV y (mplus N 1)) z (mplus (lookup ENV z) sumofsquares((lookup ENV y) N))))
+;
+
+prove in language : circularities;
+

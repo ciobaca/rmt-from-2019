@@ -1,0 +1,305 @@
+/* any file begins with the declaration of all sorts used */
+sorts BoolP,
+      Var,
+      AExp,
+      BExp,
+      NonValAExp,
+      NonValBExp,
+      Stmt,
+      Code,
+      CompStack,
+      Map,
+      MapItem,
+      CfgI;
+
+// after declaring all sorts,
+// we must declare all subsort relations
+subsort Int < AExp;
+subsort Var < NonValAExp;
+subsort NonValAExp < AExp;
+subsort NonValBExp < BExp;
+subsort AExp BExp Stmt < Code;
+subsort Bool < BoolP;
+subsort BoolP < BExp;
+
+/* next we must declare all function symbols */
+signature
+
+	// some program variables
+	x : -> Var,
+	y : -> Var,
+	z : -> Var,
+
+	// helper functions
+	synEq : Var Var -> BoolP,
+    	update : Var Int Map -> Stmt,
+	updateh : MapItem -> Stmt,
+	lookup  : Var Map -> Stmt,
+    	lookuph : Var Int Map -> Stmt,
+
+	// arithmetic and boolean expressions
+	plus : AExp AExp -> NonValAExp,
+	plushl : AExp -> AExp,
+    	plushr : AExp -> AExp,
+
+	pred : AExp -> NonValAExp,
+	predh : -> AExp,
+
+	succ : AExp -> NonValAExp,
+	succh : -> AExp,
+
+	le   : AExp AExp -> NonValBExp,
+    	lehl : AExp -> BExp,
+    	lehr : AExp -> BExp,
+
+	// computation stack
+	done : -> CompStack,
+	push : Code CompStack -> CompStack,
+
+	// environment
+	mi : Var Int -> MapItem,
+	emp : -> Map,
+	cons : MapItem Map -> Map,
+
+	// configuration
+	I : CompStack Map -> CfgI,
+
+	// statements
+	assign : Var AExp -> Stmt,
+	updateEnv : -> Stmt,
+    	assignh : Var -> Stmt,
+
+	skip : -> Stmt,
+
+	seq : Stmt Stmt -> Stmt,
+
+	ite : BExp Stmt Stmt -> Stmt,
+	iteh : Stmt Stmt -> Stmt,
+
+	while : BExp Stmt -> Stmt;
+
+/* next we must declare all variables */
+variables
+	// necessary variables
+	X : Var,
+	Y : Var,
+	Z : Var,
+	N : Int,
+	J : Int,
+	M : Int,
+	SUM : Int,
+	B : Bool,
+	BE : BExp,
+	BE1 : BExp,
+	BE2 : BExp,
+	AE : AExp,
+	AE1 : AExp,
+	AE2 : AExp,
+	NVAE : NonValAExp,
+	NVAE1 : NonValAExp,
+	NVAE2 : NonValAExp,
+	NVBE : NonValBExp,
+	NVBE1 : NonValBExp,
+	NVBE2 : NonValBExp,
+	S : Stmt,
+	S1 : Stmt,
+	S2 : Stmt,
+	REST : CompStack,
+	ENV : Map,
+	ENV1 : Map,
+	ENV2 : Map;
+
+/* next, declare all rewrite rules */
+rewrite-system language
+	(synEq x y) =>
+	false,
+	(synEq x z) =>
+	false,
+	(synEq y z) =>
+	false,
+	(synEq y x) =>
+	false,
+	(synEq z y) =>
+	false,
+	(synEq z x) =>
+	false,
+	(synEq x x) =>
+	true,
+	(synEq y y) =>
+	true,
+	(synEq z z) =>
+	true,
+
+	(I (push (update X N emp)   REST) ENV) =>
+	(I (push (cons (mi X N) emp) REST) ENV),
+
+    	(I (push (update X N (cons (mi Y M) ENV1))   REST) ENV) =>
+    	(I (push (synEq X Y) (push (update X N (cons (mi Y M) ENV1)) REST)) ENV),
+
+    	(I (push true (push (update X N (cons (mi Y M) ENV1))   REST)) ENV) =>
+    	(I (push (cons (mi X N) ENV1) REST) ENV),
+
+    	(I (push false (push (update X N (cons (mi Y M) ENV1))   REST)) ENV) =>
+    	(I (push (update X N ENV1) (push (updateh (mi Y M)) REST)) ENV),
+
+    	(I (push ENV1 (push (updateh (mi Y M))   REST)) ENV) =>
+    	(I (push (cons (mi Y M) ENV1) REST) ENV),
+
+	(I (push (lookup X (cons (mi Y M) ENV1))   REST) ENV) =>
+	(I (push (synEq X Y) (push (lookuph X M ENV1) REST)) ENV),
+
+	(I (push true (push (lookuph X M ENV1)   REST)) ENV) =>
+	(I (push M                                REST)  ENV),
+
+	(I (push false (push (lookuph X M ENV1)  REST)) ENV) =>
+	(I (push (lookup X ENV1)                  REST)  ENV),
+
+ 	(I (push X              REST) ENV) =>
+ 	(I (push (lookup X ENV) REST) ENV),
+
+	(I (push (pred N)            REST) ENV) =>
+	(I (push (mminus N 1)    REST) ENV),
+
+	(I (push (pred NVAE)       REST)  ENV) =>
+	(I (push NVAE (push predh REST)) ENV),
+
+	(I (push N (push predh REST)) ENV) =>
+	(I (push (pred N)       REST)  ENV),
+
+	(I (push (succ N)           REST) ENV) =>
+	(I (push (mplus N 1)    REST) ENV),
+
+	(I (push (succ NVAE)       REST)  ENV) =>
+	(I (push NVAE (push succh REST)) ENV),
+
+	(I (push N (push succh REST)) ENV) =>
+	(I (push (succ N)       REST)  ENV),
+
+	(I (push (assign X N)                      REST) ENV) =>
+        (I (push (update X N ENV) (push updateEnv REST)) emp),
+
+        (I (push ENV  (push updateEnv REST)) emp) =>
+	(I (push skip                 REST) ENV),
+    
+ 	(I (push (assign X NVAE)       REST)  ENV) =>
+ 	(I (push NVAE (push (assignh X) REST)) ENV),
+
+     	(I (push N (push (assignh X) REST)) ENV) =>
+     	(I (push (assign X N)        REST)  ENV),
+
+// sequential composition
+	(I (push (seq S1 S2) REST)  ENV) =>
+	(I (push S1 (push S2 REST)) ENV),
+
+	(I (push skip REST) ENV) =>
+	(I            REST  ENV),
+
+// conditional statement
+
+	(I (push (ite NVBE S1 S2)       REST)  ENV) =>
+	(I (push NVBE (push (iteh S1 S2) REST)) ENV),
+
+	(I (push B (push (iteh S1 S2) REST)) ENV) =>
+	(I (push (ite B S1 S2)       REST)  ENV),
+
+	(I (push (ite true S1 S2) REST) ENV) =>
+	(I (push S1                REST) ENV),
+
+ 	(I (push (ite false S1 S2) REST) ENV) =>
+ 	(I (push S2                 REST) ENV),
+
+// while statement
+ 	(I (push (while BE S)                        REST) ENV) =>
+ 	(I (push (ite BE (seq S (while BE S)) skip) REST) ENV),
+
+// addition operator
+ 	(I (push (plus N M)     REST) ENV) =>
+ 	(I (push (mplus N M)    REST) ENV),
+
+	(I (push (plus NVAE1 AE2)        REST)  ENV) =>
+	(I (push NVAE1 (push (plushl AE2) REST)) ENV),
+  
+ 	(I (push N (push (plushl AE2) REST)) ENV) =>
+ 	(I (push (plus N AE2)        REST)  ENV),
+
+ 	(I (push (plus N NVAE2)        REST)  ENV) =>
+ 	(I (push NVAE2 (push (plushr N) REST)) ENV),
+
+ 	(I (push M (push (plushr N) REST)) ENV) =>
+ 	(I (push (plus N M)        REST)  ENV),
+
+// less than or equal to operator2
+
+ 	(I (push (le N M)  REST) ENV) =>
+ 	(I (push (mle N M) REST) ENV),
+
+ 	(I (push (le NVAE1 AE2)        REST)  ENV) =>
+ 	(I (push NVAE1 (push (lehl AE2) REST)) ENV),
+
+ 	(I (push N (push (lehl AE2) REST)) ENV) =>
+ 	(I (push (le N AE2)        REST)  ENV),
+
+ 	(I (push (le N NVAE2)        REST)  ENV) =>
+ 	(I (push NVAE2 (push (lehr N) REST)) ENV),
+  
+ 	(I (push M (push (lehr N) REST)) ENV) =>
+ 	(I (push (le N M)       REST)  ENV);
+
+constrained-rewrite-system circularities
+(I (push 
+ 	(seq (assign x N)
+   	(seq (assign y 0)
+ 	(seq (assign z 0)
+ 	    (while (le y x)
+                   (seq (assign z (plus z y))
+ 		      (assign y (plus y 1)))))))
+     done) emp) /\ (mle 0 N)
+=>
+(I done (cons (mi x N) (cons (mi y (mplus N 1)) (cons (mi z (mdiv (mtimes N (mplus N 1)) 2)) emp))))
+
+,
+
+(I (push 
+	(while (le y x)
+		(seq (assign z (plus z y))
+		(assign y (plus y 1))))
+      done)
+      (cons (mi x N) (cons (mi y J) (cons (mi z SUM) emp)))) /\ (band (mle 0 J) (mle J N))
+=>
+(I done 
+      (cons (mi x N) (cons (mi y (mplus N 1)) (cons (mi z (mplus SUM 
+			(mdiv (mtimes (mplus (mminus N J) 1) (mplus J N)) 2)
+						)) emp))))
+;
+
+prove [103,0] in language : circularities;
+
+
+// until second while (when i can apply circularities)
+// search [109,109] in language :
+// (I (push 
+//  	(seq (assign x N),
+//    	(seq (assign y 0),
+//  	(seq (assign z 0),
+//  	    (while (le y x),
+//                    (seq (assign z (plus z y)),
+//  		      (assign y (plus y 1))))))),
+//      done) emp) /\ (mle 0 N)
+// ;
+// search in circularities : 
+//   (I (push (while (le y,x),(seq (assign z,(plus z,y)),(assign y,(plus y,1)))),done),(cons (mi x,N),(cons (mi y,(mplus 0,1)),(cons (mi z,(mplus 0,0)),emp)))) /\ (mle 0,N);
+
+
+// until second while (when i can apply circularities)
+// search [27,27] in language :
+// (I (push 
+//  	(seq (assign x N),
+//    	(seq (assign y 0),
+//  	(seq (assign z 0),
+//  	    (while (le y x),
+//                    (seq (assign z (plus z y)),
+//  		      (assign y (plus y 1))))))),
+//      done) emp) /\ (mle 0 N)
+// ;
+// search in circularities : 
+//   (I (push (while (le y,x),(seq (assign z,(plus z,y)),(assign y,(plus y,1)))),done),(cons (mi x,N),(cons (mi y,0),(cons (mi z,0),emp)))) /\ (mle 0,N);

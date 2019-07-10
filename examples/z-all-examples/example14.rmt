@@ -1,0 +1,74 @@
+/*
+This is an example used as a regression test.
+
+Run this example with
+
+./main -v 0 < example14.rmt
+
+The output should be:
+
+2 solutions.
+Solution #1:
+(loop (mplus S,N),(mminus N,1)) if (mle 1,N)
+Solution #2:
+(done S) if (bnot (mle 1,N))
+*/
+
+/*
+Any RMT file starts with the declaration of sorts. We declare three
+sorts here: Int, Bool and State. The first two sorts, Int and Bool are
+interpreted as "Int" and respectively "Bool".
+*/
+sorts State;
+
+/*
+The next declaration introduces all functional symbols. The first two
+chunks define the symbols operating on Int's and respectively
+Bool's. Note that we have to define even the constant symbols and
+their interpretation.
+*/
+signature
+/*
+The following function symbols are not built-in and therefore they are
+uninterpreted. "init", "loop" and "done" are therefore the only
+constructors for the sort "State".
+*/
+  init : Int->State, loop : Int Int->State, done : Int->State;
+
+/*
+Up next, we have to declare all variables that we use throughout the
+rest of the file.
+*/
+variables B : Bool, S : Int, N : Int, I : Int;
+
+/*
+Now follows the most important part of the file, the declaration of a
+constrained term rewriting system (CTRS) called "sum". There are three
+constrained rewrite rules. The idea of the "sum" CTRS is to compute
+the sum of the first N natural numbers as follows: the term (init N) is
+meant to be the initial term of the computation. It immediately
+rewrites into (loop 0, N). Recall from the declarations above that
+0 is a nullary function symbol that is interpreted as the integer
+"0". The loop symbol has arity 2 and its two parameters are: (1) an
+accumulator holding the sum so far and (2) a counter N - the numbers
+it still has to add to the accumulator.
+
+The second rewrite rule corresponds to the case where the computation
+is not yet done: the number N is greater than 1 (denoted by the
+condition "/\ (mle 1, N)" -- where mle is interpreted as
+less-or-equal). In this case the accumulator is increased by N and the
+counter decreases by one.
+
+The third rewrite rule corresponds to the termination condition. In
+case the counter is less than 1, the term is rewritten into (done S),
+where S is the sum accumulated so far.
+*/
+constrained-rewrite-system sum
+
+  (init N) => (loop 0 N),
+
+  (loop (mplus (mminus S 1) 1) N) /\ (mle 1 N) => (loop (mplus S N) (mminus N 1)),
+
+  (loop S N) /\ (bnot (mle 1 N)) => (done S);
+
+search in sum : (loop S (mplus (mminus N 1) 1));

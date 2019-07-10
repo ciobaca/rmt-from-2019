@@ -1,0 +1,54 @@
+/*
+
+  Simple example which simulates the following program:
+
+  y := 1;
+  while x > 0 do
+    x := x - y;
+    y := y + 1;
+
+  The rewrite system is:
+
+  (init x) => (loop x, 1)
+  (loop x, y) /\ x > 0 => (loop x - y, y + 1)
+  (loop x, y) /\ x <= 0 => (done x)
+
+  We prove the total correctness specification:
+
+  (init x) => (done z)
+
+*/
+sorts State, nState;
+
+signature
+  mabs : Int -> Int / "abs", // absolute value
+
+  init:Int->State, loop:Int Int->State, done:Int->State,
+  protect:State Int->nState;
+
+variables B:Bool, S:Int, N:Int, I:Int, x:Int, y:Int, z:Int, VN:Int, VI:Int, REZ:Int;
+
+/*** Rewrite Rules ***/
+constrained-rewrite-system whileloop
+  (init x) => (loop x 1),
+
+  (loop x y) /\ (bnot (mle x 0)) => (loop (mminus x y) (mplus y 1)),
+  
+  (loop x y) /\ (mle x 0) => (done x);
+
+/*** Proof Obligation ***/
+constrained-rewrite-system circularities
+
+  (init x) => (done z),
+
+  (loop x y) /\ (mle 1 y) => (done z);
+
+// the following command proves partial correctness
+//prove in whileloop : circularities;
+
+// the following commands are for proving total correctness
+instrument whileloop whileloop_protected State nState protect;
+
+cinstrument circularities circularities_protected State nState protect x x;
+
+prove in whileloop_protected : circularities_protected;

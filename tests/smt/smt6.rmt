@@ -1,0 +1,34 @@
+sorts State;
+
+signature
+  init : -> State,                  // init / 0
+  f : State State -> State,         // f / 2
+  h : State -> State,               // h / 1
+  g1 : -> State,                     // g1 / 0
+  g2 : -> State;                     // g2 / 0
+
+variables N : State, S : State, I : State, B : State;
+
+// (f x y) = (f y x) pentru orice x, y in State
+// C_f = { f x y = f y x }
+// A_f = { f (f x y) z = f x (f y z) } 
+
+c-unify (f S g2) (f g2 g1); // intoarca o multime completa de unificatori
+
+//a-unify;// problema infinitara -> (in general, o multime completa de unificatori e infinita)
+
+//ac-unify (f* y z x) (f* x y); // nu cred ca exista unificator aici
+
+// "unit" - exemplu -- zero
+// acu-unify (f* y z x) (f* x y); // z |-> unit
+
+//simplification (band (mle 1 N) (mle 2 N));
+// simplification (mplus S I);
+// simplification (mminus I 1);
+// simplification (mplus (mminus I 1) 1);
+// simplification (mtimes (mminus I 1) (mplus (mminus I 1) 1));
+// simplification (mdiv (mtimes (mminus I 1) (mplus (mminus I 1) 1)) 2);
+//simplification (mequals (mplus (mplus S I) (mdiv (mtimes (mminus I 1) (mplus (mminus I 1) 1)) 2)) (mplus S (mdiv (mtimes I (mplus I 1)) 2)));
+
+//simplification (band (mle I N) (bnot (mle N I)));
+

@@ -1,0 +1,112 @@
+/* any file begins with the declaration of all sorts used */
+sorts State;
+
+signature
+	// states
+	ca : Int Int -> State,
+	cb : Int Int Bool -> State,
+	cc : Int -> State;
+
+/* next we must declare all variables */
+variables
+	B : Bool,
+	S : Int,
+	N : Int,
+	M : Int,
+	I : Int;
+
+
+rewrite-system default
+	(ca S I) =>
+	(cb S I (mle 1 I)),
+
+	(cb S I true) =>
+	(ca (mplus S I) (mminus I 1)),
+
+	(cb S I false) =>
+	(cc S);
+
+// (ca 0 4)
+
+// (cb 0 4 true)
+// (ca 4 3)
+// (cb 4 3 true)
+// (ca 7 2)
+// (cb 7 2 true)
+// (ca 9 1)
+// (cb 9 1 true)
+// (ca 10 0)
+// (cb 10 0 false)
+
+// invariant: (ca S I) =>* (cc S + (I I+1)/2)
+
+// (cc 10)
+
+// forall I I >= 0 -> (ca 0 I) =>* (cc I*(I+1)/2)
+// corectitudine functionala
+
+
+
+
+
+constrained-rewrite-system circularities
+	(ca 0 N) /\ (mle 0 N) =>
+	(cc (mdiv (mtimes N (mplus N 1)) 2)),
+
+	(ca S I) /\ (mle 0 I) =>
+	(cc (mplus S (mdiv (mtimes I (mplus I 1)) 2)));
+
+//smt-narrow-search in default :
+//  (cb (mplus (mplus 0,N),(mminus N,1)),(mminus (mminus N,1),1),(mle 1,(mminus (mminus N,1),1))) /\ (mle 1,(mminus N,1));
+
+//smt-run in simplifications : (band true B);
+
+//smt-run in simplifications : (band true false);
+
+//smt-unify (cc (mplus N N)) and (cc (mtimes 2 N));
+
+//smt-implies (cc (mplus N N)) and (cc (mtimes 2 N));
+
+//smt-implies (cb 0,N,true) and (cc (mdiv (mtimes N,(mplus N,1)),2));
+
+//smt-implies (cb 0,N,true) /\ (mequals N 0) and (cb M N true);
+
+//smt-narrow-search in default :
+//	(cb 0 N true);
+
+//smt-satisfiability (band (band (band (bnot false),(bnot false)),(bnot bor(bequals(true,(mle 1,(mminus (mplus 0,N),1))),false))),bequals(true,(mle 1,(mminus (mplus 0,N),1))));
+
+prove in default : circularities;
+
+// the following queries are old -- they probably don't work anymore; I keep them for reference purposes only
+
+//smt-unify (cc (mplus N N)) and (cc (mtimes 2 N));
+
+//smt-unify (cc N) /\ (band (mle 0 N) (mle N 0)) and (cc (mtimes 2 N));
+
+//smt-unify (cc N) and (cc M);
+
+//smt-unify (cc N) /\ (mle 2 N) and (cc N);
+
+//smt-unify (cc (mplus N,(mdiv (mtimes (mminus N,1),(mplus (mminus N,1),1)),2))) /\ (mle 1,(mminus N,1)) and (cc (mdiv (mtimes N,(mplus N,1)),2));
+
+//query-smt-narrow-search in default :
+//	(cb 0 N true);
+
+//query-smt-narrow-search in default :
+//	(ca (mplus 0,N),(mminus N,1));
+
+//is-satisfiable (band (band (band (bnot false),(bnot false)),(bnot bor(bequals(true,(mle 1,(mminus (mplus 0,N),1))),false))),bequals(true,(mle 1,(mminus (mplus 0,N),1))));
+
+//prove in default : circularities;
+
+//smt-unify (cc (mplus S,I)) /\ (band (band (band (band (band (band (band (mle 0 I),true),true),true),(bnot (mle 1,(mminus I,1)))),true),true),(bnot (mle 1,(mminus I,1)))) and (cc (mplus S,(mdiv (mtimes I,(mplus I,1)),2)));
+
+//query-smt-narrow-search in circularities :
+//	(cb (mplus 0,N),(mminus N,1),(mle 1,(mminus N,1)));
+
+//smt-narrow-search (ca (mplus S,I),(mminus I,1));
+
+//smt-narrow-search (ca S I);
+
+//smt-narrow-search (cb S I (mle 1 I));

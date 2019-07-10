@@ -1,0 +1,53 @@
+/*example for sqrt*/
+sorts Int/"Int", Bool/"Bool", State, nState;
+
+signature mzero:->Int/"0", mone:->Int/"1",
+  mplus:Int Int->Int/"+", mminus:Int Int->Int/"-",
+  mtimes:Int Int->Int/"*", mdiv:Int Int->Int/"div",
+  mle:Int Int->Bool/"<=", mequals:Int Int->Bool/"=",
+
+  bequals:Bool Bool->Bool/"=", band:Bool Bool->Bool/"and",
+  bimplies:Bool Bool->Bool/"=>", bor:Bool Bool->Bool/"or",
+  bnot:Bool->Bool/"not", true:->Bool/"true", false:->Bool/"false",
+
+  init:Int Int->State, loop:Int Int Int->State, correct:->State, incorrect:->State,
+  protect:State Int->nState;
+
+variables B:Bool, S:Int, N:Int, I:Int, X:Int, M:Int, VN:Int, VI:Int, REZ:Int;
+
+rewrite-system simplifications
+  bnot(false)=>true, bnot(true)=>false, bnot(bnot(B))=>B,
+  band(false, B)=>false, band(true, B)=>B, band(B, false)=>false,
+  band(B, true)=>B, bimplies(true, B)=>B, bimplies(false, B)=>true,
+  bor(false, B)=>B, bor(true, B)=>true, bor(B, false)=>B,
+  bor(B, true)=>true, mequals(N, N)=>true, bequals(B, B)=>true,
+  bequals(true, B)=>B,bequals(false, B)=>bnot(B), bequals(B, true)=>B,
+  bequals(B, false)=>bnot(B), band(B, B)=>B, bor(B, B)=>B;
+
+/*
+  //C program for computing floor of square root
+  int c = 0;
+  for (; x >= 0; x -= 2 * c + 1, ++c);
+  return c - 1;
+
+*/
+
+constrained-rewrite-system sys_sqrt
+  init(N,REZ) => loop(mzero, N, REZ),
+  loop(S, N, REZ) /\ mle(mzero, N) => loop(mplus(S, mone), mminus(N, mplus(mplus(S,S),mone)),REZ),
+  loop(S, N, REZ) /\ band( bnot(mle(mzero, N)), mequals(mminus(S, mone),REZ)) => correct,
+  loop(S, N, REZ) /\ band( bnot(mle(mzero, N)), bnot(mequals(mminus(S, mone),REZ))) => incorrect;
+
+constrained-rewrite-system circularities
+
+  init(N,REZ) /\ band( mle(mtimes(REZ,REZ),N) , bnot(mle(mtimes(mplus(REZ,mone),mplus(REZ,mone)),N)) ) => correct,
+
+  loop(S,I,REZ) /\ band( mle(mzero,I), band( mle(mtimes(REZ,REZ),mplus(mtimes(S,S),I)) , bnot(mle(mtimes(mplus(REZ,mone),mplus(REZ,mone)),mplus(mtimes(S,S),I))) )) => correct;
+
+/*
+instrument sum sum_protected State nState protect;
+cinstrument circularities circularities_protected State nState protect mplus(N,mtwo) mplus(I,mone);
+prove in sum_protected : circularities_protected;
+*/
+
+prove in sys_sqrt : circularities;

@@ -1,0 +1,277 @@
+/* TC example for sum in imperative programming language */
+smt-prelude
+"(declare-fun uifun (Int Int) Int)
+ (declare-datatypes () ((Id idX idY idZ idC1 idC2 idV1 idV2)))
+ (define-fun sumUpTo ((n Int)) Int
+    (div (* n (+ n 1)) 2)
+ )
+ (define-fun even ((n Int)) Bool
+    (= (mod n 2) 0)
+ )
+ (define-fun sum ((a Int) (b Int)) Int
+   (- (sumUpTo b) (sumUpTo (- a 1))))
+ (declare-const emptydict (Array Id Int))
+; (assert (= emptydict ((as const (Array Id Int)) 0)))
+"
+sorts Int / "Int",
+      Bool / "Bool",
+      Dict / "(Array Id Int)",
+      Id / "Id",
+      AExp,
+      BExp,
+      Stmt,
+      Code,
+      List,
+      Cfg,
+      nCfg
+    ;
+/* next we must declare all function symbols */
+signature
+	// integers
+	mzero : -> Int / "0",
+	mone : -> Int / "1",
+	mtwo : -> Int / "2",
+	mthree : -> Int / "3",
+	mconst : -> Int / "200", /* constant for variant in TC transformation */
+	mplus : Int Int -> Int / "+",
+	mminus : Int Int -> Int / "-",
+	mtimes : Int Int -> Int / "*",
+	mle : Int Int -> Bool / "<=",
+	mlt : Int Int -> Bool / "<",
+	mequals : Int Int -> Bool / "=",
+	sum : Int Int -> Int / "sum",
+	// booleans
+	bequals : Bool Bool -> Bool / "=",
+	band : Bool Bool -> Bool / "and",
+	bimplies : Bool Bool -> Bool / "=>",
+	bor : Bool Bool -> Bool / "or",
+	bnot : Bool -> Bool / "not",
+	true : -> Bool / "true",
+	false : -> Bool / "false",
+	// identifiers
+	x : -> Id / "idX",
+	y : -> Id / "idY",
+	z : -> Id / "idZ",
+	idequals : Id Id -> Bool / "=",
+	// dictionaries
+	emptydict : -> Dict / "emptydict",
+	update : Dict Id Int -> Dict / "store",
+	lookup  : Dict Id -> Int / "select",
+	dictequals : Dict Dict -> Bool / "=",
+	// constructors for arithmetic expressions
+	i : Int -> AExp,
+	id : Id -> AExp,
+	plus : AExp AExp -> AExp,
+	plushl : AExp -> AExp,
+    	plushr : AExp -> AExp,
+	isIntVal : AExp -> Bool / defined, // determines whether an arithmetic expression is a value
+	lifta : AExp -> Code,
+	
+	// constructors for boolean expressions
+	b : Bool -> BExp,
+	aequals : AExp AExp -> BExp,
+	aequalshl : AExp -> BExp,
+	aequalshr : AExp -> BExp,
+	lte   : AExp AExp -> BExp,
+    	ltehl : AExp -> BExp,
+    	ltehr : AExp -> BExp,
+	lt   : AExp AExp -> BExp,
+    	lthl : AExp -> BExp,
+    	lthr : AExp -> BExp,
+	not : BExp -> BExp,
+	noth : -> BExp,
+	isBoolVal : BExp -> Bool / defined, // function to determine whether a boolean expression is a value
+	liftb : BExp -> Code,
+	// statements
+	assign : Id AExp -> Stmt,
+    	assignh : Id -> Stmt,
+	skip : -> Stmt,
+	seq : Stmt Stmt -> Stmt,
+	ite : BExp Stmt Stmt -> Stmt,
+	iteh : Stmt Stmt -> Stmt,
+	while : BExp Stmt -> Stmt,
+	lifts : Stmt -> Code,
+	// computation stack
+	done : -> List,
+	push : Code List -> List,
+	// configuration
+	IC : List Dict -> Cfg,
+	//protect function (for total correctness)
+	protect : Cfg Int -> nCfg;
+/* next we must declare all variables */
+variables
+	X : Id,
+	Y : Id,
+	Z : Id,
+	N : Int,
+	SUM : Int,
+	I : Int,
+	J : Int,
+	M : Int,
+	B : Bool,
+	BE : BExp,
+	BE1 : BExp,
+	BE2 : BExp,
+	
+	AE : AExp,
+	AE1 : AExp,
+	AE2 : AExp,
+	
+	S : Stmt,
+	S1 : Stmt,
+	S2 : Stmt,
+	S3 : Stmt,
+	S4 : Stmt,
+	
+	REST : List,
+	
+	ENV : Dict,
+	ENVP : Dict,
+	ENV1 : Dict,
+	ENV2 : Dict,
+	M_1 : Int, M_2 : Int;
+rewrite-system simplifications
+  bnot(false) => true, bnot(true) => false, bnot(bnot(B)) => B,
+  band(false, B) => false, band(true, B) => B, band(B, false) => false,
+  band(B, true) => B, bimplies(true, B) => B, bimplies(false, B) => true,
+  bimplies(B, true) => true, bimplies(B, false) => bnot(B),
+  bor(false, B) => B, bor(true, B) => true, bor(B, false) => B,
+  bor(B, true) => true, mequals(N, N) => true, bequals(B, B) => true,
+  bequals(true, B) => B, bequals(false, B) => bnot(B), bequals(B, true) => B,
+  bequals(B, false) => bnot(B), band(B, B) => B, bor(B, B) => B;
+rewrite-system functions
+  isBoolVal(b(B)) => true,
+  
+  isBoolVal(aequals(AE1, AE2)) => false,
+  isBoolVal(aequalshl(AE1)) => false,
+  isBoolVal(aequalshr(AE1)) => false,
+  isBoolVal(lte(AE1, AE2)) => false,
+  isBoolVal(ltehl(AE1)) => false,
+  isBoolVal(ltehr(AE1)) => false,
+  isBoolVal(lt(AE1, AE2)) => false,
+  isBoolVal(lthl(AE1)) => false,
+  isBoolVal(lthr(AE1)) => false,
+  isBoolVal(not(BE1)) => false,
+  isBoolVal(noth) => false,
+  isIntVal(i(I)) => true,
+  isIntVal(id(X)) => false,
+  isIntVal(plus(AE1, AE2)) => false,
+  isIntVal(plushl(AE1)) => false,
+  isIntVal(plushr(AE1)) => false
+;
+/* next, declare all rewrite rules */
+constrained-rewrite-system language
+        /* statements: assignment statement */
+	IC(push(lifts(assign(X, i(N))), REST), ENV) =>
+        IC(REST,                               update(ENV, X, N)),
+    
+ 	IC(push(lifts(assign(X, AE)),       REST) , ENV) /\ bnot(isIntVal(AE)) =>
+ 	IC(push(lifta(AE), push(lifts(assignh(X)), REST)), ENV),
+     	IC(push(lifta(i(N)), push(lifts(assignh(X)), REST)), ENV) =>
+     	IC(push(lifts(assign(X, i(N))),        REST) , ENV),
+	/* statements: sequential composition */
+	IC(push(lifts(seq(S1, S2)), REST) , ENV) =>
+	IC(push(lifts(S1), push(lifts(S2), REST)), ENV),
+	IC(push(lifts(skip), REST), ENV) =>
+	IC(                  REST , ENV),
+	/* statements: conditional statement */
+	IC(push(lifts(ite(BE, S1, S2)),              REST) , ENV) /\ bnot(isBoolVal(BE)) =>
+	IC(push(liftb(BE), push(lifts(iteh(S1, S2)), REST)), ENV),
+	IC(push(liftb(b(B)), push(lifts(iteh(S1, S2)), REST)), ENV) =>
+	IC(push(lifts(ite(b(B), S1, S2)),              REST) , ENV),
+	IC(push(lifts(ite(b(B), S1, S2)), REST), ENV) /\ B =>
+	IC(push(lifts(S1),                   REST), ENV),
+ 	IC(push(lifts(ite(b(B), S1, S2)), REST), ENV) /\ bnot(B) =>
+ 	IC(push(lifts(S2),                    REST), ENV),
+	/* statements: while statement */
+ 	IC(push(lifts(while(BE, S)),                        REST), ENV) =>
+ 	IC(push(lifts(ite(BE, seq(S, while(BE, S)), skip)), REST), ENV),
+	/* arithmetic expressions: identifier lookup in environment */
+	IC(push(lifta(id(X)),             REST), ENV) =>
+ 	IC(push(lifta(i(lookup(ENV, X))), REST), ENV),
+	/* arithmetic expressions: sum */
+ 	IC(push(lifta(plus(i(N), i(M))),     REST), ENV) =>
+ 	IC(push(lifta(i(mplus(N, M))),       REST), ENV),
+	IC(push(lifta(plus(AE1, AE2)),        REST) , ENV) /\ bnot(isIntVal(AE1)) =>
+	IC(push(lifta(AE1), push(lifta(plushl(AE2)), REST)), ENV),
+  
+ 	IC(push(lifta(i(N)), push(lifta(plushl(AE2)), REST)), ENV) =>
+ 	IC(push(lifta(plus(i(N), AE2))              , REST) , ENV),
+ 	IC(push(lifta(plus(i(N), AE2))              , REST) , ENV) /\ bnot(isIntVal(AE2)) =>
+ 	IC(push(lifta(AE2), push(lifta(plushr(i(N))), REST)), ENV),
+ 	IC(push(lifta(i(M)), push(lifta(plushr(i(N))), REST)), ENV) =>
+ 	IC(push(lifta(plus(i(N), i(M)))              , REST) , ENV),
+	/* boolean expressions: equality */
+ 	IC(push(liftb(aequals(i(N), i(M))),  REST), ENV) =>
+ 	IC(push(liftb(mequals(N, M)),        REST), ENV),
+ 	IC(push(liftb(aequals(AE1, AE2)),        REST) , ENV) /\ bnot(isIntVal(AE1)) =>
+ 	IC(push(lifta(AE1), push(liftb(aequalshl(AE2)), REST)), ENV),
+ 	IC(push(lifta(i(N)), push(liftb(aequalshl(AE2)), REST)), ENV) =>
+ 	IC(push(liftb(aequals(i(N), AE2)),        REST) , ENV),
+ 	IC(push(liftb(aequals(i(N), AE2)),        REST) , ENV) /\ bnot(isIntVal(AE1)) =>
+ 	IC(push(lifta(AE2), push(liftb(aequalshr(i(N))), REST)), ENV),
+  
+ 	IC(push(lifta(i(M)), push(liftb(aequalshr(i(N))), REST)), ENV) =>
+ 	IC(push(liftb(aequals(i(N), i(M))),        REST) , ENV),
+	/* boolean expressions: negation */
+	IC(push(liftb(not(b(B))),  REST), ENV) =>
+	IC(push(liftb(b(bnot(B))), REST), ENV),
+	IC(push(liftb(not(BE)),       REST) , ENV) /\ bnot(isBoolVal(BE)) =>
+	IC(push(liftb(BE), push(liftb(noth), REST)), ENV),
+	IC(push(liftb(b(B)), push(liftb(noth), REST)), ENV) =>
+	IC(push(liftb(not(b(B))),       REST) , ENV),
+	/* boolean expressions: less than or equal to (lte) */
+ 	IC(push(liftb(lte(i(N), i(M))),  REST), ENV) =>
+ 	IC(push(liftb(b(mle(N, M))),    REST), ENV),
+ 	IC(push(liftb(lte(AE1, AE2)),        REST) , ENV) /\ bnot(isIntVal(AE1)) =>
+ 	IC(push(lifta(AE1), push(liftb(ltehl(AE2)), REST)), ENV),
+ 	IC(push(lifta(i(N)), push(liftb(ltehl(AE2)), REST)), ENV) =>
+ 	IC(push(liftb(lte(i(N), AE2)),        REST) , ENV),
+ 	IC(push(liftb(lte(i(N), AE2)),        REST) , ENV) /\ bnot(isIntVal(AE2)) =>
+ 	IC(push(lifta(AE2), push(liftb(ltehr(i(N))), REST)), ENV),
+  
+ 	IC(push(lifta(i(M)), push(liftb(ltehr(i(N))), REST)), ENV) =>
+ 	IC(push(liftb(lte(i(N), i(M))),        REST) , ENV),
+	// strictly less than
+ 	IC(push(liftb(lt(i(N), i(M))),  REST), ENV) =>
+ 	IC(push(liftb(b(mlt(N, M))),    REST), ENV),
+ 	IC(push(liftb(lt(AE1, AE2)),               REST) , ENV) /\ bnot(isIntVal(AE1)) =>
+ 	IC(push(lifta(AE1), push(liftb(lthl(AE2)), REST)), ENV),
+ 	IC(push(lifta(i(N)), push(liftb(lthl(AE2)), REST)), ENV) =>
+ 	IC(push(liftb(lt(i(N), AE2)),               REST) , ENV),
+ 	IC(push(liftb(lt(i(N), AE2)),        REST) , ENV) /\ bnot(isIntVal(AE2)) =>
+ 	IC(push(lifta(AE2), push(liftb(lthr(i(N))), REST)), ENV),
+  
+ 	IC(push(lifta(i(M)), push(liftb(lthr(i(N))), REST)), ENV) =>
+ 	IC(push(liftb(lt(i(N), i(M))),        REST) , ENV)
+;
+constrained-rewrite-system circularities
+IC(
+	push(
+		lifts(while(lte(id(y),i(N)),
+		        seq(assign(z,plus(id(z),id(y))),
+                            assign(y,plus(id(y),i(mone)))))),
+		REST),
+        ENV) /\ band(mle(mzero, N),
+	             mle(lookup(ENV, y), N))
+=>
+IC(
+	REST,
+	update(update(ENV, y, mplus(N, mone)), z, mplus(lookup(ENV, z), sum(lookup(ENV, y), N))))
+;
+// run in language : IC(push(
+// 	lifts(seq(seq(assign(y,i(mzero)), assign(z,i(mzero))),
+// 	        while(lte(id(y),i(mtwo)),
+// 	        seq(assign(z,plus(id(z),id(y))),
+//                     assign(y,plus(id(y),i(mone))))))),
+// 	done),
+//         emptydict)
+// ;
+//prove [300,5] in language : circularities;
+constrained-rewrite-system circ1
+protect(IC(push(lifts(while(lte(id(y),i(N)),seq(assign(z,plus(id(z),id(y))),assign(y,plus(id(y),i(mone)))))),done),ENV),M_1)
+/\ band(band(band(mle(mzero,N),mle(lookup(ENV,y),N)),true),mle(mplus(mconst,mtimes(mminus(N, lookup(ENV,y)),mconst)),M_1)) =>
+protect(IC(done,update(update(ENV,y,mplus(N,mone)),z,mplus(lookup(ENV,z),sum(lookup(ENV,y),N)))),M_2);
+instrument language lang_protected Cfg nCfg protect;
+cinstrument circularities circularities_protected Cfg nCfg protect mplus(mconst,mtimes(N,mconst));
+prove [300,5] in lang_protected : circularities_protected;

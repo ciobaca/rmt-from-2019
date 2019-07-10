@@ -1,0 +1,148 @@
+/*
+
+This is an example accompanying the RMT paper submission.
+
+The example proves the formal correctness of a rewrite system
+computing 1 + 2 + ... + N.
+
+The example comes as 5 files and this is the first one.
+
+We have a rewrite system that computes the sum of the first N positive
+natural numbers.
+
+This first file explains how the "search" query works: it computes the
+successors of a constrained term w.r.t. the rewrite system above.
+
+Run this example with
+
+./rmt -v 0 < 01-sum-v1.rmt
+
+The output should be:
+
+2 solutions.
+Solution #1:
+loop(mplus(S,N),mminus(N,mone)) if mle(mone,N)
+Solution #2:
+done(S) if bnot(mle(mone,N))
+*/
+
+/*
+Any RMT file starts with the declaration of sorts. We declare three
+sorts here: Int, Bool and State. The first two sorts, Int and Bool are
+interpreted as "Int" and respectively "Bool".
+*/
+sorts Int / "Int", Bool / "Bool", State;
+
+/*
+The next declarations are subsorting declarations. There is no need
+for subsorting in this first example, so all declarations are commented
+out.
+*/
+// subsort Int < State;
+
+/*
+The next declaration introduces all functional symbols. The first two
+chunks define the symbols operating on Int's and respectively
+Bool's. Note that we have to define even the constant symbols and
+their interpretation.
+*/
+signature
+  // math built-in function symbols
+  mzero : -> Int / "0", mone : -> Int / "1", mtwo : -> Int / "2",
+  mplus : Int Int->Int / "+", mminus : Int Int->Int / "-",
+  mtimes : Int Int->Int / "*", mdiv : Int Int->Int / "div",
+  mle : Int Int->Bool / "<=", mequals : Int Int->Bool / "=",
+
+  // bool built-in function symbols
+  bequals : Bool Bool->Bool / "=", band : Bool Bool->Bool / "and",
+  bimplies : Bool Bool->Bool / "=>", bor : Bool Bool->Bool / "or",
+  bnot : Bool->Bool / "not", true : ->Bool / "true", false : ->Bool / "false",
+
+/*
+The following function symbols are not built-in and therefore they are
+uninterpreted. "init", "loop" and "done" are therefore the only
+constructors for the sort "State".
+*/
+  init : Int->State, loop : Int Int->State, done : Int->State;
+
+/*
+Up next, we have to declare all variables that we use throughout the
+rest of the file.
+*/
+variables B : Bool, S : Int, N : Int, I : Int;
+
+/*
+The following declaration introduces a rewrite system called
+"simplifications". This is a special rewrite system, because the
+system will use it to simplify constraints and other terms. It is the
+responsability of the user to ensure that the rewrite rules are sound,
+in the sense that the interpretation of the left-hand side is the same
+as the interpretation of the right-hand side. Moreover, the rules need
+to be terminating. You can add other rules here, depending on what you
+need. For example, it might help to add mplus(N, mzero) => N, which
+will make sure that RMT simplifies all additions by zero. Note that
+the syntax is infix. All terms are written using infix syntax in
+RMT. This might seem annoying at times, but it helps by removing
+sources of ambiguities that are difficult to debug.
+*/
+rewrite-system simplifications
+  bnot(false) => true, bnot(true) => false, bnot(bnot(B)) => B,
+  band(false, B) => false, band(true, B) => B, band(B, false) => false,
+  band(B, true) => B, bimplies(true, B) => B, bimplies(false, B) => true,
+  bor(false, B) => B, bor(true, B) => true, bor(B, false) => B,
+  bor(B, true) => true, mequals(N, N) => true, bequals(B, B) => true,
+  bequals(true, B) => B,bequals(false, B) => bnot(B), bequals(B, true) => B,
+  bequals(B, false) => bnot(B), band(B, B) => B, bor(B, B) => B;
+
+/*
+Now follows the most important part of the file, the declaration of a
+constrained term rewriting system (CTRS) called "sum". There are three
+constrained rewrite rules. The idea of the "sum" CTRS is to compute
+the sum of the first N natural numbers as follows: the term init(N) is
+meant to be the initial term of the computation. It immediately
+rewrites into loop(mzero, N). Recall from the declarations above that
+mzero is a nullary function symbol that is interpreted as the integer
+"0". The loop symbol has arity 2 and its two parameters are: (1) an
+accumulator holding the sum so far and (2) a counter N - the numbers
+it still has to add to the accumulator.
+
+The second rewrite rule corresponds to the case where the computation
+is not yet done: the number N is greater than 1 (denoted by the
+condition "/\ mle(mone, N)" -- where mle is interpreted as
+less-or-equal). In this case the accumulator is increased by N and the
+counter decreases by one.
+
+The third rewrite rule corresponds to the termination condition. In
+case the counter is less than 1, the term is rewritten into done(S),
+where S is the sum accumulated so far.
+*/
+constrained-rewrite-system sum
+
+  init(N) => loop(mzero, N),
+
+  loop(S, N) /\ mle(mone, N) => loop(mplus(S, N), mminus(N, mone)),
+
+  loop(S, N) /\ bnot(mle(mone, N)) => done(S);
+
+/*
+Finally, this example illustrates the "search" query/command. The
+search command will output all symbolic successors of the queried
+term. In our case, there are two solutions, depending on whether N is
+greater than one or not:
+
+2 solutions.
+Solution #1:
+loop(mplus(S,N),mminus(N,mone)) if mle(mone,N)
+Solution #2:
+done(S) if bnot(mle(mone,N))
+
+The solutions are presented as constrained terms "t if b" and they
+should be interpreted as follows: if the constraint "b" holds then the
+queried term advances in one step into t.
+
+For example, looking at the second solution above, it states that if 1
+is not less-or-equal to N, then done(S) is reachable from loop(S, N)
+in one step. This corresponds to the application of the third rewrite
+rule in the "sum" CTRS defined above.
+*/
+search in sum : loop(S, N);

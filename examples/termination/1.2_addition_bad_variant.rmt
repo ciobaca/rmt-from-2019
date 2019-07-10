@@ -1,0 +1,54 @@
+/*
+
+  Simple example which simulates the addition of two numbers in linear
+  time. Consider the following rewrite rules:
+
+  (loop x, y) /\ ~ (y <= 0) => (loop x + 1, y - 1),
+  (loop x, y) /\ y <= 0 => (done x);
+
+  We try to prove the total correctness specification:
+
+  (loop x, y) /\ ~ (y <= 0) => (done x + y),
+
+  but we use the wrong variant.
+
+  This example shows that if we use a bad variant (trying to show the
+  final state is reached in at most y steps -- instead of y + 2), then
+  the proof fails.
+
+*/
+sorts State, nState;
+
+signature
+  init:Int Int->State, loop:Int Int->State, done:Int->State,
+  protect:State Int->nState;
+
+variables B:Bool, S:Int, N:Int, I:Int, x:Int, y:Int, VN:Int, VI:Int, REZ:Int;
+
+/*** Rewrite Rules ***/
+constrained-rewrite-system sum
+  (loop x y) /\ (bnot (mle y 0)) => (loop (mplus x 1) (mminus y 1)),
+  (loop x y) /\ (mle y 0) => (done x);
+
+/*** Proof Obligation ***/
+constrained-rewrite-system circularities
+  (loop x y) /\ (bnot (mle y 0)) => (done (mplus x y));
+
+// the following command would prove the obligations (in the sense of
+// partial correctness)
+// prove in sum : circularities;
+
+// the following commands transform
+// 1. the initial rewrite system "sum" generating "sum_protected" and
+instrument sum sum_protected State nState protect;
+
+// 2. the proof obligations "circularities" generating "circularities_protected"
+// note the use of the wrong upper bound "y" instead of the correct "y + 2"
+// "State" and "nState" denote the sorts of the old configuration and resp. new configuration
+cinstrument circularities circularities_protected State nState protect y;
+
+// the following proves the partial correctness of the proof obligations
+// "circularities_protected" in the rewrite system "sum_protected"
+prove in sum_protected : circularities_protected;
+
+// the proof fails as expected (the output is "... Circularity #1 not proved. ...")

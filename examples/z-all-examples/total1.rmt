@@ -1,0 +1,27 @@
+sorts State, nState;
+
+signature
+  init:Int->State, loop:Int Int->State, done:Int->State,
+  protect:State Int->nState;
+
+variables B:Bool, S:Int, N:Int, I:Int, X:Int, M:Int, VN:Int, VI:Int;
+
+constrained-rewrite-system sum
+  (init N) => (loop 0 N),
+  (loop S N) /\ (mle 1 N) => (loop (mplus S N) (mminus N 1)),
+  (loop S N) /\ (bnot (mle 1 N)) => (done S);
+
+constrained-rewrite-system circularities
+
+  (init N) /\ (mle 0 N) => (done (mdiv (mtimes N (mplus N 1)) 2)),
+
+  (loop S I) /\ (mle 0 I) => (done (mplus S (mdiv (mtimes I (mplus I 1)) 2)));
+
+constrained-rewrite-system circularities_protected
+
+  (protect (init N) VN) /\ (band (mle (mplus N 2) VN) (mle 0 N)) => (protect (done (mdiv (mtimes N (mplus N 1)) 2)) M),
+
+  (protect (loop S I) VI) /\ (band (mle (mplus I 1) VI) (mle 0 I)) => (protect (done (mplus S (mdiv (mtimes I (mplus I 1)) 2))) M);
+
+instrument sum sum_protected State nState protect;
+prove in sum_protected : circularities_protected;

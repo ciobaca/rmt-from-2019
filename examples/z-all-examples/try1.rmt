@@ -1,0 +1,52 @@
+smt-prelude "
+(define-fun hasdivisors ((x Int) (y Int) (z Int)) Bool
+   (exists ((u Int))
+        (and (>= u y) (<= u z) (= 0 (mod x u))))
+)
+(define-fun composite ((x Int)) Bool
+  (hasdivisors x 2 (- x 1))
+)
+" 
+
+sorts State;
+
+signature
+  mhasdiv : Int Int Int -> Bool / "hasdivisors",
+  mcomposite : Int -> Bool / "composite",
+
+  init : Int -> State, loop : Int Int -> State, composite : -> State, noncomposite : -> State;
+
+variables B : Bool, S : Int, N : Int, I : Int;
+
+constrained-rewrite-system composability
+
+  (init N) => (loop N 2),
+
+  (loop N I) /\ (band (mless I N) (mequals (mmod N I) 0)) => composite,
+
+  (loop N I) /\ (band (mless I N) (bnot (mequals (mmod N I) 0))) =>
+    (loop N (mplus I 1)),
+
+  (loop N I) /\ (bnot (mless I N)) => noncomposite;
+
+
+
+constrained-rewrite-system circularitiesNonComposite
+
+  (init N) /\ (bnot (mcomposite N)) => noncomposite,
+
+  (loop N I) /\ (bnot (mhasdiv N I (mminus N 1))) => noncomposite;
+
+
+
+constrained-rewrite-system circularitiesComposite
+
+  (init N) /\ (mcomposite N) => composite,
+
+  (loop N I) /\ (mhasdiv N I (mminus N 1)) => composite;
+
+
+
+prove in composability : circularitiesNonComposite;
+
+prove in composability : circularitiesComposite;

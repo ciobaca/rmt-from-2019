@@ -1,0 +1,7 @@
+// example of unsatisfiable constraint
+
+sorts State;
+signature init : -> State;
+variables N : Int;
+
+satisfiability (mle (mplus N 1) N);

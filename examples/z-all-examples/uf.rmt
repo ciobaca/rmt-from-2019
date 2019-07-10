@@ -1,0 +1,60 @@
+/* any file begins with the declaration of all sorts used */
+sorts BoolP,
+      Var,
+      Cfg;
+
+// after declaring all sorts,
+// we must declare all subsort relations
+// subsort Int < AExp;
+// subsort Var < NonValAExp;
+// subsort NonValAExp < AExp;
+// subsort NonValBExp < BExp;
+// subsort AExp BExp Stmt < Code;
+// subsort Bool < BExp;
+subsort Bool < BoolP;
+
+/* next we must declare all function symbols */
+signature
+
+	// some program variables
+	x : -> Var,
+	y : -> Var,
+	z : -> Var,
+
+	// helper functions
+	synEq : Var Var -> BoolP,
+	cfg : BoolP -> Cfg;
+
+/* next we must declare all variables */
+variables
+	// necessary variables
+	X : Var,
+	Y : Var,
+	Z : Var,
+	N : Int,
+	M : Int,
+	SUM : Int,
+	B : Bool;
+
+/* next, declare all rewrite rules */
+rewrite-system language
+	(synEq x y) =>
+	false,
+	(synEq x z) =>
+	false,
+	(synEq y z) =>
+	false,
+	(synEq y x) =>
+	false,
+	(synEq z y) =>
+	false,
+	(synEq z x) =>
+	false,
+	(synEq x x) =>
+	true,
+	(synEq y y) =>
+	true,
+	(synEq z z) =>
+	true;
+
+search in language : (cfg (synEq X Y));

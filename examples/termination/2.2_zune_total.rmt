@@ -1,0 +1,42 @@
+/*
+  Example for the Zune Bug
+
+  This file shows that the Zune system fails to be shown totally
+  correct (as it can loop forever).
+
+Run with:
+> rmt[.exe] < 2.2_zune_total.rmt
+[it will take a few minutes]
+Expected output:
+... Circularity #1 not proved. ...
+*/
+sorts State, nState;
+
+signature
+  mtsf:->Int/"365", mtss:->Int/"366",
+  init:Int->State, loop:Int Int->State, done:Int->State,
+  protect:State Int->nState;
+
+variables B:Bool, S:Int, N:Int, I:Int, X:Int, M:Int, VN:Int, VI:Int, D:Int, Y:Int;
+
+constrained-rewrite-system zune
+  (loop D Y) /\ (mle D mtsf) => (done Y) ,
+  //simplified condition for leap year
+  (loop D Y) /\ (band (bnot (mle D mtsf)) (band (mequals (mmod Y 4) 0) (bnot (mle D mtss)))) => (loop (mminus D mtss) (mplus Y 1)) ,
+  (loop D Y) /\ (band (bnot (mle D mtsf)) (band (mequals (mmod Y 4) 0) (mle D  mtss))) => (loop D Y) ,
+  (loop D Y) /\ (band (bnot (mle D mtsf)) (bnot (mequals (mmod Y 4) 0))) => (loop (mminus D mtsf) (mplus Y 1));
+
+constrained-rewrite-system zune_fixed
+  (loop D Y) /\ (mle D mtsf) => (done Y) ,
+  (loop D Y) /\ (band (bnot (mle D mtsf)) (band (mequals (mmod Y 4) 0) (bnot (mle D mtss)))) => (loop (mminus D mtss) (mplus Y 1)) ,
+  (loop D Y) /\ (band (bnot (mle D mtsf)) (band (mequals (mmod Y 4) 0) (mle D  mtss))) => (done Y) ,
+  (loop D Y) /\ (band (bnot (mle D mtsf)) (bnot (mequals (mmod Y 4) 0))) => (loop (mminus D mtsf) (mplus Y 1));
+
+constrained-rewrite-system proof_obligation
+  (loop D Y) /\ (mle 0 D) => (done N);
+
+instrument zune zune_protected State nState protect;
+cinstrument proof_obligation proof_obligation_protected State nState protect (mplus D 2);
+prove [20, 2] in zune_protected : proof_obligation_protected;
+
+// fails  as expected

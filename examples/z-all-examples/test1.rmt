@@ -1,0 +1,26 @@
+sorts State;
+
+signature
+  f : Int -> State,
+  ok1 : Int -> State,
+  ok2 : Int -> State,
+  ok3 : Int -> State,
+  ok : -> State;
+
+variables B:Bool, S:Int, N:Int, I:Int;
+
+constrained-rewrite-system sum
+  (f (mplus N (mplus N N))) => (ok1 N),
+  (f (mplus (mplus N (mplus N N)) 1)) => (ok2 N),
+//  (f (mplus (mplus N (mplus N N)) 2)) => (ok3 N),
+  (ok1 N) => ok,
+  (ok2 N) => ok,
+  (ok3 N) => ok;
+
+constrained-rewrite-system circ
+  (f N) => ok;
+
+//search [0,2] in sum :
+//  (f N);
+prove in sum :
+  circ;

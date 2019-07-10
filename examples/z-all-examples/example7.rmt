@@ -1,0 +1,118 @@
+/*
+
+This example illustrates a rewrite system that computes the gcd of two
+integers.
+
+Run the example with
+
+./main -v 0 < example7.rmt
+
+The expected output is:
+
+Proving circularity #1:
+--------
+    - init(X,Y) if false -----> done((gcd X Y))
+    - init(X,Y) if false =(C)=> done((gcd X Y))
+        - loop(X,Y) if false -----> done((gcd X Y))
+            - done((gcd X Y)) if true -----> done((gcd X Y))
+            - done((gcd X Y)) if false =(C)=> done((gcd X Y))
+            - done((gcd X Y)) if false =(R)=> done((gcd X Y))
+        * Proved that done((gcd X Y)) if true => done((gcd X Y))
+        - loop(X,Y) if _existsInt(Y_1,_existsInt(X_1,true)) =(C)=> done((gcd X Y))
+        - loop(X,Y) if (not (exists ((Y_1 Int)) (exists ((X_1 Int)) true))) =(R)=> done((gcd X Y))
+    * Proved that loop(X,Y) if true => done((gcd X Y))
+    - init(X,Y) if true =(R)=> done((gcd X Y))
+* Proved that init(X,Y) if true => done((gcd X Y))
+--------
+Circularity #1 proved.
+
+Proving circularity #2:
+--------
+    - loop(X,Y) if false -----> done((gcd X Y))
+    - loop(X,Y) if false =(C)=> done((gcd X Y))
+        - loop(Y,(- X Y)) if false -----> done((gcd X Y))
+            - done((gcd Y (- X Y))) if (not (= Y 0)) -----> done((gcd X Y))
+            - done((gcd Y (- X Y))) if false =(C)=> done((gcd X Y))
+            - done((gcd Y (- X Y))) if false =(R)=> done((gcd X Y))
+        * Proved that done((gcd Y (- X Y))) if (not (= Y 0)) => done((gcd X Y))
+        - loop(Y,(- X Y)) if (and (not (= Y 0)) (exists ((Y_6 Int)) (exists ((X_6 Int)) (not (= Y 0))))) =(C)=> done((gcd X Y))
+        - loop(Y,(- X Y)) if (and (not (= Y 0)) (not (exists ((Y_6 Int)) (exists ((X_6 Int)) (not (= Y 0)))))) =(R)=> done((gcd X Y))
+    * Proved that loop(Y,(- X Y)) if (not (= Y 0)) => done((gcd X Y))
+        - done(X) if (= Y 0) -----> done((gcd X Y))
+        - done(X) if false =(C)=> done((gcd X Y))
+        - done(X) if false =(R)=> done((gcd X Y))
+    * Proved that done(X) if (= Y 0) => done((gcd X Y))
+    - loop(X,Y) if true =(R)=> done((gcd X Y))
+* Proved that loop(X,Y) if true => done((gcd X Y))
+--------
+Circularity #2 proved.
+
+*/
+
+/*
+
+An .rmt file can optionally start with an "smt-prelude" command that
+takes a string as an argument and sends the string to the Z3 solver on
+every invocation. In our case, we use the SMT prelude to define a
+recursive function that computes the gcd by repeated subtraction.
+
+*/
+// smt-prelude "
+// (declare-fun gcd (Int Int) Int)
+// (assert (forall ((x Int) (y Int))
+// (= (gcd x y)
+//      (ite (= y 0)
+//       x
+//       (gcd y (- x y))
+//      )
+// )))"
+
+sorts State;
+
+signature 
+  init : Int Int -> State, loop : Int Int -> State, done : Int -> State,
+  ok : Int Int -> State;
+
+variables S : Int, N : Int, I : Int, J : Int, X : Int, Y : Int, Z :
+ Int, A : Int, B : Int, C : Int, D : Int, BB : Bool;
+
+builtins mgcd : Int Int -> Int;
+
+assert (_forallInt X (_forallInt Y
+       (mequals (mgcd X Y) (iteInt (mequals Y 0) X (mgcd Y (mminus X Y))))));
+
+/*
+
+In our rewrite system, we also compute the gcd of two numbers of
+repeated subtraction.
+
+*/
+constrained-rewrite-system gcd
+  (init X Y) => (loop X Y),
+
+  (loop X Y) /\ (bnot (mequals Y 0)) =>
+  (loop Y (mminus X Y)),
+
+  (loop X Y) /\ (mequals Y 0) =>
+  (done X);
+
+/*
+
+We want to prove that the rewrite system indeed computes the gcd. Note
+that the "mgcd" function symbol defined above in the signature
+declaration is interpreted by the "gcd" function defined in
+smt-prelude.
+
+*/
+constrained-rewrite-system circ
+  (init X Y) => (done (mgcd X Y)),
+  (loop X Y) => (done (mgcd X Y));
+
+/*
+
+Ask RMT to make the reachability proof. As both the rewrite system and
+the recursive Z3 function make the computation by subtraction, there
+is no surprize that the proof goes through.
+
+*/
+prove [5,2] in gcd : circ;

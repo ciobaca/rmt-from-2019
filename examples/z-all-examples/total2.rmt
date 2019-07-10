@@ -1,0 +1,357 @@
+/*
+This file contains the operational semantics of topmost IMP, a simple imperative
+language used to illustrate our approach to proving reachability properties.
+
+Run this example with
+
+./main -v 0 < example6.rmt
+
+The expected output is huge, but you should see
+
+[...]
+Circularity #1 proved.
+[...]
+Circularity #2 proved.
+
+The running time on my machine is around 30 seconds.
+*/
+// we need several sorts now
+sorts BoolP, // an additional BoolP sort that will contain booleans computed by
+             // function symbols that we define;
+	     // our function symbols cannot return Bool since Bool is built-in
+      Var, // a sort for program variable
+      AExp, // a sort for arithmetic expressions
+      BExp, // a sort of boolean program expressions
+      NonValAExp, // a sort for arithmetic expressions that are not values
+      NonValBExp, // a sort for boolean expressions that are not values
+      Stmt, // a sort for statements
+      Code, // a sort for "Code" (either statements or expressions)
+      CompStack, // a sort for a Stack of Code
+      Map, // maps that recall the environment (which variable has which value)
+      MapItem, // maps contain MapItem s
+      CfgI, // a sort holding the configuration of a program
+      pCfg; // a sort holding the protected configuration of a program (total correctness)
+
+// after declaring all sorts,
+// we must declare all subsort relations
+subsort Int < AExp; // any integer is an arithmetic expression
+subsort Var < NonValAExp; // any variables is an arithmetic expression that is not a value
+subsort NonValAExp < AExp; // any arithmetic expression that is not a value is an a.e.
+subsort NonValBExp < BExp; // same for boolean expressions
+subsort AExp BExp Stmt < Code; // expressions and statements are code
+subsort Bool < BoolP; // BoolP contains the built-in sort Bool
+subsort BoolP < BExp; // BoolP can be part of boolean expressions
+
+signature
+	// the standard interpreted integer and boolean symbols
+	mtwenty : -> Int / "20",
+	6ty : -> Int / "60",
+
+	// some program variables
+	x : -> Var,
+	y : -> Var,
+	z : -> Var,
+
+	// helper functions
+	synEq : Var Var -> BoolP,
+    	update : Var Int Map -> Stmt,
+	updateh : MapItem -> Stmt,
+	lookup  : Var Map -> Stmt,
+    	lookuph : Var Int Map -> Stmt,
+
+	// arithmetic and boolean expressions
+	plus : AExp AExp -> NonValAExp,
+	plushl : AExp -> AExp,
+    	plushr : AExp -> AExp,
+
+	pred : AExp -> NonValAExp,
+	predh : -> AExp,
+
+	succ : AExp -> NonValAExp,
+	succh : -> AExp,
+
+	le   : AExp AExp -> NonValBExp,
+    	lehl : AExp -> BExp,
+    	lehr : AExp -> BExp,
+
+	// computation stack
+	done : -> CompStack,
+	push : Code CompStack -> CompStack,
+
+	// environment
+	mi : Var Int -> MapItem,
+	emp : -> Map,
+	cons : MapItem Map -> Map,
+
+	// configuration
+	I : CompStack Map -> CfgI,
+	pI : CfgI Int -> pCfg,
+
+	// statements
+	assign : Var AExp -> Stmt,
+	updateEnv : -> Stmt,
+    	assignh : Var -> Stmt,
+
+	skip : -> Stmt,
+
+	seq : Stmt Stmt -> Stmt,
+
+	ite : BExp Stmt Stmt -> Stmt,
+	iteh : Stmt Stmt -> Stmt,
+
+	while : BExp Stmt -> Stmt;
+
+/* next we must declare all variables */
+variables
+	X : Var,
+	Y : Var,
+	Z : Var,
+	N : Int,
+	J : Int,
+	M : Int,
+	PVL : Int,
+	PVR : Int,
+	SUM : Int,
+	B : Bool,
+	BE : BExp,
+	BE1 : BExp,
+	BE2 : BExp,
+	AE : AExp,
+	AE1 : AExp,
+	AE2 : AExp,
+	NVAE : NonValAExp,
+	NVAE1 : NonValAExp,
+	NVAE2 : NonValAExp,
+	NVBE : NonValBExp,
+	NVBE1 : NonValBExp,
+	NVBE2 : NonValBExp,
+	S : Stmt,
+	S1 : Stmt,
+	S2 : Stmt,
+	REST : CompStack,
+	ENV : Map,
+	ENV1 : Map,
+	ENV2 : Map;
+
+constrained-rewrite-system language
+// a function to compare program variables
+	(synEq x y) =>
+	false,
+	(synEq x z) =>
+	false,
+	(synEq y z) =>
+	false,
+	(synEq y x) =>
+	false,
+	(synEq z y) =>
+	false,
+	(synEq z x) =>
+	false,
+	(synEq x x) =>
+	true,
+	(synEq y y) =>
+	true,
+	(synEq z z) =>
+	true,
+
+// definition of update function
+	(I (push (update X N emp)   REST) ENV) =>
+	(I (push (cons (mi X N) emp) REST) ENV),
+
+    	(I (push (update X N (cons (mi Y M) ENV1))   REST) ENV) =>
+    	(I (push (synEq X Y) (push (update X N (cons (mi Y M) ENV1)) REST)) ENV),
+
+    	(I (push true (push (update X N (cons (mi Y M) ENV1))   REST)) ENV) =>
+    	(I (push (cons (mi X N) ENV1) REST) ENV),
+
+    	(I (push false (push (update X N (cons (mi Y M) ENV1))   REST)) ENV) =>
+    	(I (push (update X N ENV1) (push (updateh (mi Y M)) REST)) ENV),
+
+    	(I (push ENV1 (push (updateh (mi Y M))   REST)) ENV) =>
+    	(I (push (cons (mi Y M) ENV1) REST) ENV),
+
+	(I (push (lookup X (cons (mi Y M) ENV1))   REST) ENV) =>
+	(I (push (synEq X Y) (push (lookuph X M ENV1) REST)) ENV),
+
+	(I (push true (push (lookuph X M ENV1)   REST)) ENV) =>
+	(I (push M                                REST)  ENV),
+
+	(I (push false (push (lookuph X M ENV1)  REST)) ENV) =>
+	(I (push (lookup X ENV1)                  REST)  ENV),
+
+ 	(I (push X              REST) ENV) =>
+ 	(I (push (lookup X ENV) REST) ENV),
+
+// pred
+	(I (push (pred N)            REST) ENV) =>
+	(I (push (mminus N 1)    REST) ENV),
+
+	(I (push (pred NVAE)       REST)  ENV) =>
+	(I (push NVAE (push predh REST)) ENV),
+
+	(I (push N (push predh REST)) ENV) =>
+	(I (push (pred N)       REST)  ENV),
+
+// succ
+	(I (push (succ N)           REST) ENV) =>
+	(I (push (mplus N 1)    REST) ENV),
+
+	(I (push (succ NVAE)       REST)  ENV) =>
+	(I (push NVAE (push succh REST)) ENV),
+
+	(I (push N (push succh REST)) ENV) =>
+	(I (push (succ N)       REST)  ENV),
+
+// assignment statement
+	(I (push (assign X N)                      REST) ENV) =>
+        (I (push (update X N ENV) (push updateEnv REST)) emp),
+
+        (I (push ENV  (push updateEnv REST)) emp) =>
+	(I (push skip                 REST) ENV),
+    
+ 	(I (push (assign X NVAE)       REST)  ENV) =>
+ 	(I (push NVAE (push (assignh X) REST)) ENV),
+
+     	(I (push N (push (assignh X) REST)) ENV) =>
+     	(I (push (assign X N)        REST)  ENV),
+
+// sequential composition
+	(I (push (seq S1 S2) REST)  ENV) =>
+	(I (push S1 (push S2 REST)) ENV),
+
+	(I (push skip REST) ENV) =>
+	(I            REST  ENV),
+
+// conditional statement
+
+	(I (push (ite NVBE S1 S2)       REST)  ENV) =>
+	(I (push NVBE (push (iteh S1 S2) REST)) ENV),
+
+	(I (push B (push (iteh S1 S2) REST)) ENV) =>
+	(I (push (ite B S1 S2)       REST)  ENV),
+
+	(I (push (ite true S1 S2) REST) ENV) =>
+	(I (push S1                REST) ENV),
+
+ 	(I (push (ite false S1 S2) REST) ENV) =>
+ 	(I (push S2                 REST) ENV),
+
+// while statement
+ 	(I (push (while BE S)                        REST) ENV) =>
+ 	(I (push (ite BE (seq S (while BE S)) skip) REST) ENV),
+
+// addition operator
+ 	(I (push (plus N M)     REST) ENV) =>
+ 	(I (push (mplus N M)    REST) ENV),
+
+	(I (push (plus NVAE1 AE2)        REST)  ENV) =>
+	(I (push NVAE1 (push (plushl AE2) REST)) ENV),
+  
+ 	(I (push N (push (plushl AE2) REST)) ENV) =>
+ 	(I (push (plus N AE2)        REST)  ENV),
+
+ 	(I (push (plus N NVAE2)        REST)  ENV) =>
+ 	(I (push NVAE2 (push (plushr N) REST)) ENV),
+
+ 	(I (push M (push (plushr N) REST)) ENV) =>
+ 	(I (push (plus N M)        REST)  ENV),
+
+// less than or equal to operator2
+
+ 	(I (push (le N M)  REST) ENV) =>
+ 	(I (push (mle N M) REST) ENV),
+
+ 	(I (push (le NVAE1 AE2)        REST)  ENV) =>
+ 	(I (push NVAE1 (push (lehl AE2) REST)) ENV),
+
+ 	(I (push N (push (lehl AE2) REST)) ENV) =>
+ 	(I (push (le N AE2)        REST)  ENV),
+
+ 	(I (push (le N NVAE2)        REST)  ENV) =>
+ 	(I (push NVAE2 (push (lehr N) REST)) ENV),
+  
+ 	(I (push M (push (lehr N) REST)) ENV) =>
+ 	(I (push (le N M)       REST)  ENV);
+
+/*
+
+We now define the circularities that we need in order to prove
+the SUM program correct.
+
+*/
+constrained-rewrite-system circularities
+// this is the specification of the SUM program
+(I (push 
+ 	(seq (assign x N)                                // x <- N
+   	(seq (assign y 0)                            // y <- 0
+ 	(seq (assign z 0)                            // z <- 0
+ 	    (while (le y x)                              // while y <= x
+                   (seq (assign z (plus z y))            //   z <- z + y
+ 		      (assign y (plus y 1)))))))     //   y <- y - 1
+     done) emp) /\ (mle 0 N)
+=>
+(I done (cons (mi x N) (cons (mi y (mplus N 1)) (cons (mi z (mdiv (mtimes N (mplus N 1)) 2)) emp)))) // at the end the program variable z is mapped to N(N+1)/2 in the environment
+,
+// this is the helper circularity that encodes the invariant of the while loop
+(I (push 
+	(while (le y x) 
+		(seq (assign z (plus z y)) 
+		(assign y (plus y 1)))) 
+      done) 
+      (cons (mi x N) (cons (mi y J) (cons (mi z SUM) emp)))) /\ (band (mle 0 J) (mle J N))
+=>
+(I done 
+      (cons (mi x N) (cons (mi y (mplus N 1)) (cons (mi z (mplus SUM 
+			(mdiv (mtimes (mplus (mminus N J) 1) (mplus J N)) 2)
+						)) emp))))
+;
+
+/*
+
+We now define the circularities that we need in order to prove
+the SUM program correct.
+
+*/
+constrained-rewrite-system circularities_protected
+// this is the specification of the SUM program
+(pI 
+(I (push 
+ 	(seq (assign x N)                                // x <- N
+   	(seq (assign y 0)                            // y <- 0
+ 	(seq (assign z 0)                            // z <- 0
+ 	    (while (le y x)                              // while y <= x
+                   (seq (assign z (plus z y))            //   z <- z + y
+ 		      (assign y (plus y 1)))))))     //   y <- y - 1
+     done) emp)
+ PVL) /\ (band (mle  (mplus 6ty (mtimes mtwenty N))  PVL) (mle 0 N))
+=>
+(pI 
+(I done (cons (mi x N) (cons (mi y (mplus N 1)) (cons (mi z (mdiv (mtimes N (mplus N 1)) 2)) emp)))) PVR) // at the end the program variable z is mapped to N(N+1)/2 in the environment
+,
+
+// this is the helper circularity that encodes the invariant of the while loop
+(pI 
+(I (push 
+	(while (le y x) 
+		(seq (assign z (plus z y)) 
+		(assign y (plus y 1)))) 
+      done) 
+      (cons (mi x N) (cons (mi y J) (cons (mi z SUM) emp))))
+ PVL) /\ (band (mle  (mtimes mtwenty (mminus N J))  PVL) (band (mle 0 J) (mle J N)))
+=>
+(pI 
+(I done 
+      (cons (mi x N) (cons (mi y (mplus N 1)) (cons (mi z (mplus SUM 
+			(mdiv (mtimes (mplus (mminus N J) 1) (mplus J N)) 2)
+						)) emp))))
+ PVR)
+;
+
+// Now ask the system to perform the proof.
+// Note that the search depth is increased from the default 100 to 103,
+// because the second circularity needs 103 search steps.
+//search in language : (I (push (synEq y,x),(push (update y,0,(cons (mi x,N),emp)),(push updateEnv,(push (seq (assign z,0),(while (le y,x),(seq (assign z,(plus z,y)),
+//(assign y,(plus y,1))))),done)))),emp);
+
+instrument language lang_protected CfgI pCfg pI;
+//prove [300,5] in lang_protected : circularities_protected;

@@ -1,0 +1,40 @@
+smt-prelude "
+(define-fun hasdivisors ((x Int) (y Int) (z Int)) Bool
+   (exists ((u Int))
+        (and (>= u y) (<= u z) (= 0 (mod x u))))
+)
+(define-fun prime ((x Int)) Bool
+  (not (hasdivisors x 2 (- x 1)))
+)
+" 
+
+sorts State;
+
+signature
+  mhasdiv : Int Int Int -> Bool / "hasdivisors",
+  mprime : Int -> Bool / "prime",
+  init : Int -> State, loop : Int Int -> State, done : Int -> State;
+
+variables B : Bool, S : Int, N : Int, I : Int;
+
+constrained-rewrite-system composability
+
+  (init N) => (loop N 2),
+
+  (loop N I) /\ (band (mless I N) (mequals (mmod N I) 0)) => (done 0),
+
+  (loop N I) /\ (band (mless I N) (bnot (mequals (mmod N I) 0))) =>
+    (loop N (mplus I 1)),
+
+  (loop N I) /\ (bnot (mless I N)) => (done 1);
+
+constrained-rewrite-system circularities
+
+  (init N) /\ (band (mle 0 N) (bnot (mprime N))) => (done 0),
+
+  (loop N I) /\ (band (mle 0 N)
+                 (band (mle 1 I)
+		 (band (mle (mplus I 1) N)
+		      (bnot (mhasdiv N I (mminus N 1)))))) => (done 0);
+
+prove in composability : circularities;

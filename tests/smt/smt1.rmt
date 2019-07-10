@@ -1,0 +1,7 @@
+// example of satisfiable constraint
+
+sorts State;
+signature init : -> State;
+variables N : Int;
+
+satisfiability (mle 1 N);

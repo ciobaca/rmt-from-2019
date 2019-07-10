@@ -1,0 +1,27 @@
+/* example for sum in n^2 */
+sorts State, nState, Nat;
+
+signature
+  nzero:->Nat,
+  a:Nat->State, b:Nat Nat->State, c:Nat Nat Nat->State, d:Nat->State, s:Nat->Nat,
+  sn:Int->Nat,
+  protect:State Int->nState;
+
+variables B:Bool, N:Int, M:Int, m:Nat, n:Nat, x:Nat, y:Nat;
+
+constrained-rewrite-system sum
+  (a n) => (b n nzero),
+  (b n x) => (c n n x),
+  (c m (s n) x) => (c m n (s x)),
+  (c (s m) nzero x) => (c m m x),
+  (c nzero nzero x) => (d x);
+  
+constrained-rewrite-system circularities
+  (a n) => (d x),
+  (c n m x) => (d y);
+
+//instrument sum sum_protected State nState protect;
+//prove in sum_protected : circularities_protected;
+
+prove in sum  : circularities;
+

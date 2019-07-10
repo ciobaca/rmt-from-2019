@@ -1,0 +1,456 @@
+sorts IntP,
+      BoolP,
+      Var,
+      AExp,
+      BExp,
+      NonValAExp,
+      NonValBExp,
+      Stmt,
+      Code,
+      CompStack,
+      Map / "(Array Int Int)",
+      CfgI,
+      State,
+      
+      VarF,
+      ExpF,
+      NonValExpF,
+      ValExpF,
+      CfgF,
+      CompStackF
+    ;
+
+builtins sum : Int Int -> Int, sumUpTo : Int -> Int, muifun : Int Int -> Int, iS1 : Int Int Int Int -> Int, iE1 : Int Int -> Int;
+
+// after declaring all sorts,
+// we must declare all subsort relations
+subsort Int < IntP;
+subsort IntP < AExp;
+subsort Var < NonValAExp;
+subsort NonValAExp < AExp;
+subsort NonValBExp < BExp;
+subsort AExp BExp Stmt < Code;
+subsort Bool < BoolP;
+subsort BoolP < BExp;
+subsort AExp < Stmt;
+subsort BExp < Stmt;
+
+subsort Bool < ValExpF;
+subsort Int < ValExpF;
+subsort VarF < ExpF;
+subsort ValExpF < ExpF;
+subsort NonValExpF < ExpF;
+
+
+/* next we must declare all function symbols */
+signature
+	pair : CfgI CfgF -> State,
+
+	mapequals : Map Map -> Bool / "=",
+
+	vfequals : VarF VarF -> Bool / "=",
+
+	var : Int -> Var,
+	fvar : Int -> VarF,
+
+	// functional language
+	miu : VarF ExpF -> NonValExpF,
+	lam : VarF ExpF -> ValExpF,
+
+	fplus : ExpF ExpF -> NonValExpF,
+	fplushr : ExpF -> NonValExpF,
+	fplushl : ExpF -> NonValExpF,
+	fminus : ExpF ExpF -> NonValExpF,
+	fminushl : ExpF -> NonValExpF,
+	fminushr : ExpF -> NonValExpF,
+	fle : ExpF ExpF -> NonValExpF,
+	flehl : ExpF -> NonValExpF,
+	flehr : ExpF -> NonValExpF,
+	fless : ExpF ExpF -> NonValExpF,
+	flesshl : ExpF -> NonValExpF,
+	flesshr : ExpF -> NonValExpF,
+	fite : ExpF ExpF ExpF -> NonValExpF,
+	fiteh : ExpF ExpF -> NonValExpF,
+//	flet : Var ExpF ExpF -> NonValExpF,
+
+	app : ExpF ExpF -> NonValExpF,
+	apphl : ExpF -> NonValExpF,
+	apphr : ExpF -> NonValExpF,
+
+	F : CompStack Map -> CfgF,
+	doneF : -> CompStackF,
+	pushf : ExpF CompStackF -> CompStackF,
+
+	//contextexp : ExpF -> NonValExpF,
+	
+	pS1 : -> Stmt,
+	pE1 : -> NonValAExp,
+
+	// helper functions
+	synEq : Var Var -> Bool / "=",
+
+	update : Map Int Int -> Map / "store",
+	lookup  : Map Int -> Int / "select",
+
+	// arithmetic and boolean expressions
+	plus : AExp AExp -> NonValAExp,
+	plushl : AExp -> AExp,
+    	plushr : AExp -> AExp,
+
+	// uninterpreted function
+	uifun : AExp AExp -> NonValAExp,
+	uifunhl : AExp -> AExp,
+	uifunhr : AExp -> AExp,
+
+	minus : AExp AExp -> NonValAExp,
+	minushl : AExp -> AExp,
+    	minushr : AExp -> AExp,
+
+	pred : AExp -> NonValAExp,
+	predh : -> Stmt,
+
+	succ : AExp -> NonValAExp,
+	succh : -> Stmt,
+
+	le   : AExp AExp -> NonValBExp,
+    	lehl : AExp -> BExp,
+    	lehr : AExp -> BExp,
+
+	less   : AExp AExp -> NonValBExp,
+    	lesshl : AExp -> BExp,
+    	lesshr : AExp -> BExp,
+
+	not : BExp -> NonValBExp,
+	noth : -> Stmt,
+
+	// computation stack
+	done : -> CompStack,
+	push : Code CompStack -> CompStack,
+
+	// configuration
+	IC : CompStack Map -> CfgI,
+
+	// statements
+	assign : Var AExp -> Stmt,
+    	assignh : Var -> Stmt,
+
+	skip : -> Stmt,
+
+	seq : Stmt Stmt -> Stmt,
+
+	ite : BExp Stmt Stmt -> Stmt,
+	iteh : Stmt Stmt -> Stmt,
+
+	while : BExp Stmt -> Stmt,
+
+	for : Var AExp AExp Stmt -> Stmt,
+	forhl : Var AExp Stmt -> Stmt,
+	forhr : Var AExp Stmt -> Stmt;
+
+/* next we must declare all variables */
+variables
+	// necessary variables
+	X : Int,
+	Y : Int,
+	Z : Int,
+
+	N : Int,
+	SUM : Int,
+	I : Int,
+	J : Int,
+	M : Int,
+	PRIMM : Int,
+	PRIMMP : Int,
+	PRIMN : Int,
+ 	PRIMENV : Map,
+ 	PRIMENVP : Map,
+	MP : Int,
+
+	B : Bool,
+	BE : BExp,
+	BE1 : BExp,
+	BE2 : BExp,
+	AE : AExp,
+	AE1 : AExp,
+	AE2 : AExp,
+	NVAE : NonValAExp,
+	NVAE1 : NonValAExp,
+	NVAE2 : NonValAExp,
+	NVBE : NonValBExp,
+	NVBE1 : NonValBExp,
+	NVBE2 : NonValBExp,
+	S : Stmt,
+	S1 : Stmt,
+	S2 : Stmt,
+	S3 : Stmt,
+	S4 : Stmt,
+	REST : CompStack,
+	RESTF : CompStackF,
+	ENV : Map,
+	ENVP : Map,
+	ENV1 : Map,
+	ENV2 : Map,
+
+	FEXP : ExpF,
+	FEXP1 : ExpF,
+	FEXP2 : ExpF,
+	FEXP3 : ExpF,
+	FNV : NonValExpF,
+	VF : ValExpF;
+
+
+assert (_forallInt N
+         (mequals (sumUpTo N) (mdiv (mtimes N (mplus N 1)) 2)));
+
+assert (_forallInt X (_forallInt Y
+         (mequals (sum X Y) (mminus (sumUpTo Y) (sumUpTo (mminus X 1))))));
+
+
+define substitute : VarF ExpF ExpF -> ExpF by
+  (substitute (fvar X) FEXP I) => I,
+  (substitute (fvar X) FEXP B) => B,
+  (substitute (fvar X) FEXP (fvar X)) => FEXP,
+  (substitute (fvar X) FEXP (fvar Y)) /\ (bnot (mequals X Y)) => (fvar Y),
+
+  (substitute (fvar X) FEXP (fplus FEXP1 FEXP2)) => (fplus (substitute (fvar X) FEXP FEXP1) (substitute (fvar X) FEXP FEXP2)),
+  (substitute (fvar X) FEXP (fminus FEXP1 FEXP2)) => (fminus (substitute (fvar X) FEXP FEXP1) (substitute (fvar X) FEXP FEXP2)),
+  (substitute (fvar X) FEXP (fless FEXP1 FEXP2)) => (fless (substitute (fvar X) FEXP FEXP1) (substitute (fvar X) FEXP FEXP2)),
+  (substitute (fvar X) FEXP (fle FEXP1 FEXP2)) => (fle (substitute (fvar X) FEXP FEXP1) (substitute (fvar X) FEXP FEXP2)),
+  (substitute (fvar X) FEXP (fite FEXP1 FEXP2 FEXP3)) => (fite (substitute (fvar X) FEXP FEXP1) (substitute (fvar X) FEXP FEXP2) (substitute (fvar X) FEXP FEXP3)),
+
+  (substitute (fvar X) FEXP (app FEXP1 FEXP2)) => (app (substitute (fvar X) FEXP FEXP1) (substitute (fvar X) FEXP FEXP2)),
+
+  (substitute (fvar X) FEXP1 (lam (fvar X) FEXP)) => (lam (fvar X) FEXP),
+  (substitute (fvar X) FEXP1 (lam (fvar Y) FEXP)) /\ (bnot (mequals X Y)) => (lam (fvar Y) (substitute (fvar X) FEXP1 FEXP)),
+
+  (substitute (fvar X) FEXP1 (miu (fvar X) FEXP)) => (miu (fvar X) FEXP),
+  (substitute (fvar X) FEXP1 (miu (fvar Y) FEXP)) /\ (bnot (mequals X Y)) => (miu (fvar Y) (substitute (fvar X) FEXP1 FEXP))
+  ;
+  
+  
+
+/* next declare all rewrite rules */
+constrained-rewrite-system language
+// language
+ 	(IC (push (var X)              REST) ENV) =>
+ 	(IC (push (lookup ENV X) REST) ENV),
+
+	(IC (push (pred N)            REST) ENV) =>
+	(IC (push (mminus N 1)    REST) ENV),
+
+	(IC (push (pred NVAE)       REST)  ENV) =>
+	(IC (push NVAE (push predh REST)) ENV),
+
+	(IC (push N (push predh REST)) ENV) =>
+	(IC (push (pred N)       REST)  ENV),
+
+	(IC (push (not B)  REST) ENV) =>
+	(IC (push (bnot B) REST) ENV),
+
+	(IC (push (not NVBE)       REST)  ENV) =>
+	(IC (push NVBE (push noth REST)) ENV),
+
+	(IC (push B (push noth REST)) ENV) =>
+	(IC (push (not B)       REST)  ENV),
+
+
+	(IC (push (succ N)           REST) ENV) =>
+	(IC (push (mplus N 1)    REST) ENV),
+
+	(IC (push (succ NVAE)       REST)  ENV) =>
+	(IC (push NVAE (push succh REST)) ENV),
+
+	(IC (push N (push succh REST)) ENV) =>
+	(IC (push (succ N)       REST)  ENV),
+
+	(IC (push (assign (var X) N) REST) ENV) =>
+        (IC REST       (update ENV X N)),
+    
+ 	(IC (push (assign (var X) NVAE)       REST)  ENV) =>
+ 	(IC (push NVAE (push (assignh (var X)) REST)) ENV),
+
+     	(IC (push N (push (assignh (var X)) REST)) ENV) =>
+     	(IC (push (assign (var X) N)        REST)  ENV),
+
+// sequential composition
+	(IC (push (seq S1 S2) REST)  ENV) =>
+	(IC (push S1 (push S2 REST)) ENV),
+
+	(IC (push skip REST) ENV) =>
+	(IC            REST  ENV),
+
+// conditional statement
+
+	(IC (push (ite NVBE S1 S2)       REST)  ENV) =>
+	(IC (push NVBE (push (iteh S1 S2) REST)) ENV),
+
+	(IC (push B (push (iteh S1 S2) REST)) ENV) =>
+	(IC (push (ite B S1 S2)       REST)  ENV),
+
+	(IC (push (ite true S1 S2) REST) ENV) =>
+	(IC (push S1                REST) ENV),
+
+ 	(IC (push (ite false S1 S2) REST) ENV) =>
+ 	(IC (push S2                 REST) ENV),
+
+// while statement
+ 	(IC (push (while BE S)                        REST) ENV) =>
+ 	(IC (push (ite BE (seq S (while BE S)) skip) REST) ENV),
+
+// addition operator
+ 	(IC (push (plus N M)     REST) ENV) =>
+ 	(IC (push (mplus N M)    REST) ENV),
+
+	(IC (push (plus NVAE1 AE2)        REST)  ENV) =>
+	(IC (push NVAE1 (push (plushl AE2) REST)) ENV),
+  
+ 	(IC (push N (push (plushl AE2) REST)) ENV) =>
+ 	(IC (push (plus N AE2)        REST)  ENV),
+
+ 	(IC (push (plus N NVAE2)        REST)  ENV) =>
+ 	(IC (push NVAE2 (push (plushr N) REST)) ENV),
+
+ 	(IC (push M (push (plushr N) REST)) ENV) =>
+ 	(IC (push (plus N M)        REST)  ENV),
+
+// subtraction operator
+ 	(IC (push (minus N M)     REST) ENV) =>
+ 	(IC (push (mminus N M)    REST) ENV),
+
+	(IC (push (minus NVAE1 AE2)        REST)  ENV) =>
+	(IC (push NVAE1 (push (minushl AE2) REST)) ENV),
+  
+ 	(IC (push N (push (minushl AE2) REST)) ENV) =>
+ 	(IC (push (minus N AE2)        REST)  ENV),
+
+ 	(IC (push (minus N NVAE2)        REST)  ENV) =>
+ 	(IC (push NVAE2 (push (minushr N) REST)) ENV),
+
+ 	(IC (push M (push (minushr N) REST)) ENV) =>
+ 	(IC (push (minus N M)        REST)  ENV),
+
+// for statement
+ 	(IC (push (for (var X) NVAE1 NVAE2 S)        REST ) ENV) =>
+ 	(IC (push NVAE1 (push (forhl (var X) NVAE2 S) REST)) ENV),
+
+ 	(IC (push N (push (forhl (var X) NVAE2 S) REST)) ENV) =>
+ 	(IC (push (for (var X) N NVAE2 S)        REST)  ENV),
+
+ 	(IC (push (for (var X) N NVAE2 S)            REST ) ENV) =>
+ 	(IC (push NVAE2 (push (forhr (var X) N S)     REST)) ENV),
+
+ 	(IC (push M (push (forhr (var X) N S) REST)) ENV) =>
+ 	(IC (push (for (var X) N M S)        REST)  ENV),
+
+	(IC (push (for (var X) N M S)                                         REST) ENV) /\ (mle N M) =>
+	(IC (push (seq (assign (var X) N) S) (push (for (var X) (mplus N 1) M S) REST)) ENV),
+
+	(IC (push (for (var X) N M S) REST) ENV) /\ (bnot (mle N M)) =>
+	(IC (push (assign (var X) N)  REST) ENV),
+
+// less than or equal to operator2
+
+ 	(IC (push (le N M)  REST) ENV) =>
+ 	(IC (push (mle N M) REST) ENV),
+
+ 	(IC (push (le NVAE1 AE2)        REST)  ENV) =>
+ 	(IC (push NVAE1 (push (lehl AE2) REST)) ENV),
+
+ 	(IC (push N (push (lehl AE2) REST)) ENV) =>
+ 	(IC (push (le N AE2)        REST)  ENV),
+
+ 	(IC (push (le N NVAE2)        REST)  ENV) =>
+ 	(IC (push NVAE2 (push (lehr N) REST)) ENV),
+  
+ 	(IC (push M (push (lehr N) REST)) ENV) =>
+ 	(IC (push (le N M)       REST)  ENV),
+
+// uninterpreted function
+ 	(IC (push (uifun N M)     REST) ENV) =>
+ 	(IC (push (muifun N M)    REST) ENV),
+
+	(IC (push (uifun NVAE1 AE2)        REST)  ENV) =>
+	(IC (push NVAE1 (push (uifunhl AE2) REST)) ENV),
+  
+ 	(IC (push N (push (uifunhl AE2) REST)) ENV) =>
+ 	(IC (push (uifun N AE2)        REST)  ENV),
+
+ 	(IC (push (uifun N NVAE2)        REST)  ENV) =>
+ 	(IC (push NVAE2 (push (uifunhr N) REST)) ENV),
+
+ 	(IC (push M (push (uifunhr N) REST)) ENV) =>
+ 	(IC (push (uifun N M)        REST)  ENV),
+
+// strictly less than
+
+ 	(IC (push (less N M)  REST) ENV) =>
+ 	(IC (push (mless N M) REST) ENV),
+
+ 	(IC (push (less NVAE1 AE2)        REST)  ENV) =>
+ 	(IC (push NVAE1 (push (lesshl AE2) REST)) ENV),
+
+ 	(IC (push N (push (lesshl AE2) REST)) ENV) =>
+ 	(IC (push (less N AE2)        REST)  ENV),
+
+ 	(IC (push (less N NVAE2)        REST)  ENV) =>
+ 	(IC (push NVAE2 (push (lesshr N) REST)) ENV),
+  
+ 	(IC (push M (push (lesshr N) REST)) ENV) =>
+ 	(IC (push (less N M)       REST)  ENV),
+
+// symbolic variables statements and expressions
+    (IC (push pE1 REST) ENV) =>
+	(IC (push (iE1 (lookup ENV 4) (lookup ENV 2)) REST) ENV),
+
+	(IC (push pS1 REST) ENV) =>
+	(IC REST (update ENV 3 (iS1 (lookup ENV 3) (lookup ENV 4) (lookup ENV 1) (lookup ENV 2))))
+;
+
+constrained-rewrite-system flanguage
+	(F (pushf (fplus FNV FEXP) RESTF) ENV) => (F (pushf FNV (pushf (fplushl FEXP) RESTF)) ENV),
+	(F (pushf I (pushf (fplushl FEXP) RESTF)) ENV) => (F (pushf (fplus I FEXP) RESTF) ENV),
+	(F (pushf (fplus I FNV) RESTF) ENV) => (F (pushf FNV (pushf (fplushr FEXP) RESTF)) ENV),
+	(F (pushf I (pushf (fplushr FEXP) RESTF)) ENV) => (F (pushf (fplus FEXP I) RESTF) ENV),
+	(F (pushf (fplus I J) RESTF) ENV) => (F (pushf (mplus I J) RESTF) ENV),
+
+	(F (pushf (fminus FNV FEXP) RESTF) ENV) => (F (pushf FNV (pushf (fminushl FEXP) RESTF)) ENV),
+	(F (pushf I (pushf (fminushl FEXP) RESTF)) ENV) => (F (pushf (fminus I FEXP) RESTF) ENV),
+	(F (pushf (fminus I FNV) RESTF) ENV) => (F (pushf FNV (pushf (fminushr FEXP) RESTF)) ENV),
+	(F (pushf I (pushf (fminushr FEXP) RESTF)) ENV) => (F (pushf (fminus FEXP I) RESTF) ENV),
+	(F (pushf (fminus I J) RESTF) ENV) => (F (pushf (mminus I J) RESTF) ENV),
+	
+	(F (pushf (fless FNV FEXP) RESTF) ENV) => (F (pushf FNV (pushf (flesshl FEXP) RESTF)) ENV),
+	(F (pushf I (pushf (flesshl FEXP) RESTF)) ENV) => (F (pushf (fless I FEXP) RESTF) ENV),
+	(F (pushf (fless I FNV) RESTF) ENV) => (F (pushf FNV (pushf (flesshr FEXP) RESTF)) ENV),
+	(F (pushf I (pushf (flesshr FEXP) RESTF)) ENV) => (F (pushf (fless FEXP I) RESTF) ENV),
+	(F (pushf (fless I J) RESTF) ENV) => (F (pushf (mplus I J) RESTF) ENV),
+
+	(F (pushf (fle FNV FEXP) RESTF) ENV) => (F (pushf FNV (pushf (flehl FEXP) RESTF)) ENV),
+	(F (pushf I (pushf (flehl FEXP) RESTF)) ENV) => (F (pushf (fle I FEXP) RESTF) ENV),
+	(F (pushf (fle I FNV) RESTF) ENV) => (F (pushf FNV (pushf (flehr FEXP) RESTF)) ENV),
+	(F (pushf I (pushf (flehr FEXP) RESTF)) ENV) => (F (pushf (fle FEXP I) RESTF) ENV),
+	(F (pushf (fle I J) RESTF) ENV) => (F (pushf (mplus I J) RESTF) ENV),
+
+	(F (pushf (fite FNV FEXP1 FEXP2) RESTF) ENV) => (F (pushf FNV (pushf (fiteh FEXP1 FEXP2) RESTF)) ENV),
+	(F (pushf B (pushf (fiteh FEXP1 FEXP2) RESTF)) ENV) => (F (pushf (fite B FEXP1 FEXP2) RESTF) ENV),
+	(F (pushf (fite true FEXP1 FEXP2) RESTF) ENV) => (F (pushf FEXP1 RESTF) ENV),
+	(F (pushf (fite false FEXP1 FEXP2) RESTF) ENV) => (F (pushf FEXP2 RESTF) ENV),
+
+	(F (pushf (app FNV FEXP) RESTF) ENV) => (F (pushf FNV (pushf (apphl FEXP) RESTF)) ENV),
+	(F (pushf (lam (fvar X) FEXP1) (pushf (apphl FEXP2) RESTF)) ENV) => (F (pushf (app (lam (fvar X) FEXP1) FEXP2) RESTF) ENV),
+	(F (pushf (app (lam (fvar X) FEXP1) FNV) RESTF) ENV) => (F (pushf FNV (pushf (apphr (lam (fvar X) FEXP1)) RESTF)) ENV),
+	(F (pushf VF (pushf (apphr (lam (fvar X) FEXP1)) RESTF)) ENV) => (F (pushf (app (lam (fvar X) FEXP1) VF) RESTF) ENV),
+	(F (pushf (app (lam (fvar X) FEXP1) VF) RESTF) ENV) => (F (pushf (substitute (fvar X) VF FEXP1) RESTF) ENV),
+	(F (pushf (miu (fvar X) FEXP) RESTF) ENV) => (F (pushf (substitute (fvar X) (miu (fvar X) FEXP) FEXP) RESTF) ENV)
+;
+
+//definedsearch [1,20] (F (app (contextexp (substitute (fvar 0) 2 (lam (fvar 1) (fplus (fvar 0) (fvar 1))))) 1));
+
+show-simulation [100] in language and flanguage :
+   (pair (IC (push 
+		(seq (assign (var 0) 1)
+		    (seq (assign (var 1) 2)
+		        (assign (var 0) (plus (var 0) (var 1))))) done) ENV1)
+	(F (pushf (app (app (lam (fvar 0) (lam (fvar 1) (fplus (fvar 0) (fvar 1)))) 2) 1) doneF) ENV2))
+ with-base
+     (pair (IC done ENVP) (F (pushf SUM doneF) ENV2)) /\ (mequals (lookup ENVP 0) SUM);

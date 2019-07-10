@@ -1,0 +1,40 @@
+smt-prelude "(define-fun-rec gcd ((x Int) (y Int)) Int
+     (ite (= y 0)
+      x
+      (gcd y (mod x y))
+     )
+)"
+
+sorts State;
+
+signature
+  mgcd : Int Int -> Int / "gcd",
+  mmod : Int Int -> Int / "mod",
+
+  init : Int Int -> State, loop : Int Int Int Int Int Int Int Int -> State, done : Int Int Int Int Int -> State,
+  ok : Int Int -> State;
+
+variables S : Int, N : Int, I : Int, J : Int, X : Int, Y : Int, Z : Int, A : Int, B : Int,
+ C : Int, D : Int, BB : Bool;
+
+constrained-rewrite-system gcd
+  (init X Y) => (loop X Y X Y 1 0 0 1),
+
+  (loop I J X Y A B C D) /\ (bnot (mequals Y 0)) =>
+  (loop I J Y (mmod X Y) //(mminus X (mtimes (mdiv X Y) Y))
+       C D
+       (mminus A (mtimes (mdiv X Y) C)) (mminus B (mtimes (mdiv X Y) D))),
+
+  (loop I J X Y A B C D) /\ (mequals Y 0) => (done I J X A B),
+
+  (done I J (mgcd I J) A B) /\ (mequals (mgcd I J) (mplus (mtimes A I) (mtimes B J))) => (ok I J);
+
+constrained-rewrite-system circ
+  (init X Y) => (ok X Y),
+
+  (loop I J X Y A B C D) /\ (band (band 
+  	  (mequals X (mplus (mtimes A I) (mtimes B J)))
+	  (mequals Y (mplus (mtimes C I) (mtimes D J))))
+	  (mequals (mgcd X Y) (mgcd I J))) => (ok I J);
+
+prove in gcd : circ;

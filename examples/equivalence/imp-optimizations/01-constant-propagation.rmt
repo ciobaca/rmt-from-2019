@@ -1,0 +1,330 @@
+sorts IntP, BoolP,
+      Var, AExp, BExp,
+      NonValAExp, NonValBExp,
+      Stmt, Code,
+      CompStack,
+      Map,
+      MapItem,
+      CfgI,
+      State;
+
+subsort Int < IntP;
+subsort IntP < AExp;
+subsort Var < NonValAExp;
+subsort NonValAExp < AExp;
+subsort NonValBExp < BExp;
+subsort AExp BExp Stmt < Code;
+subsort Bool < BoolP;
+subsort BoolP < BExp;
+
+signature
+	pair : CfgI CfgI -> State,
+
+	x : -> Var,
+	y : -> Var,
+	z : -> Var,
+
+	pV1 : -> Var,
+	pC1 : -> Var,
+	pC2 : -> Var,
+	pV2 : -> Var,
+	pS1 : -> Stmt,
+	pE1 : -> NonValAExp,
+	iS1 : Var Var Var Var -> IntP,
+	iE1 : Var Var -> IntP,
+
+	// helper functions
+	synEq : Var Var -> BoolP,
+    	update : Var Int Map -> Stmt,
+	updateh : MapItem -> Stmt,
+	lookup  : Var Map -> Stmt,
+    	lookuph : Var Int Map -> Stmt,
+
+	// arithmetic and boolean expressions
+	plus : AExp AExp -> NonValAExp,
+	plushl : AExp -> AExp,
+    	plushr : AExp -> AExp,
+
+	pred : AExp -> NonValAExp,
+	predh : -> AExp,
+
+	succ : AExp -> NonValAExp,
+	succh : -> AExp,
+
+	le   : AExp AExp -> NonValBExp,
+    	lehl : AExp -> BExp,
+    	lehr : AExp -> BExp,
+
+	// computation stack
+	done : -> CompStack,
+	push : Code CompStack -> CompStack,
+
+	// environment
+	mi : Var Int -> MapItem,
+	emp : -> Map,
+	cons : MapItem Map -> Map,
+
+	// configuration
+	I : CompStack Map -> CfgI,
+
+	// statements
+	assign : Var AExp -> Stmt,
+	updateEnv : -> Stmt,
+    	assignh : Var -> Stmt,
+
+	skip : -> Stmt,
+
+	seq : Stmt Stmt -> Stmt,
+
+	ite : BExp Stmt Stmt -> Stmt,
+	iteh : Stmt Stmt -> Stmt,
+
+	while : BExp Stmt -> Stmt;
+
+variables
+	X : Var,
+	Y : Var,
+	Z : Var,
+
+	N : IntP,
+	J : IntP,
+	M : IntP,
+	SUM : IntP,
+
+	B : BoolP,
+	BE : BExp,
+	BE1 : BExp,
+	BE2 : BExp,
+	AE : AExp,
+	AE1 : AExp,
+	AE2 : AExp,
+	NVAE : NonValAExp,
+	NVAE1 : NonValAExp,
+	NVAE2 : NonValAExp,
+	NVBE : NonValBExp,
+	NVBE1 : NonValBExp,
+	NVBE2 : NonValBExp,
+	S : Stmt,
+	S1 : Stmt,
+	S2 : Stmt,
+	REST : CompStack,
+	ENV : Map,
+	ENV1 : Map,
+	ENV2 : Map;
+
+
+/* next, declare all rewrite rules */
+constrained-rewrite-system language
+	(synEq x x) => true,
+	(synEq y y) => true,
+	(synEq z z) => true,
+	(synEq pV1 pV1) => true,
+	(synEq pV2 pV2) => true,
+	(synEq pC1 pC1) => true,
+	(synEq pC2 pC2) => true,
+
+	(synEq x y) => false,
+	(synEq x z) => false,
+	(synEq x pV1) => false,
+	(synEq x pV2) => false,
+	(synEq x pC1) => false,
+	(synEq x pC2) => false,
+	
+	(synEq y z) => false,
+	(synEq y x) => false,
+	(synEq y pV1) => false,
+	(synEq y pV2) => false,
+	(synEq y pC1) => false,
+	(synEq y pC2) => false,
+
+	(synEq z y) => false,
+	(synEq z x) => false,
+	(synEq z pV1) => false,
+	(synEq z pV2) => false,
+	(synEq z pC1) => false,
+	(synEq z pC2) => false,
+
+	(synEq pV1 x) => false,
+	(synEq pV1 y) => false,
+	(synEq pV1 z) => false,
+	(synEq pV1 pV2) => false,
+	(synEq pV1 pC1) => false,
+	(synEq pV1 pC2) => false,
+
+	(synEq pV2 x) => false,
+	(synEq pV2 y) => false,
+	(synEq pV2 z) => false,
+	(synEq pV2 pV1) => false,
+	(synEq pV2 pC1) => false,
+	(synEq pV2 pC2) => false,
+
+	(synEq pC1 x) => false,
+	(synEq pC1 y) => false,
+	(synEq pC1 z) => false,
+	(synEq pC1 pV1) => false,
+	(synEq pC1 pV2) => false,
+	(synEq pC1 pC2) => false,
+
+	(synEq pC2 x) => false,
+	(synEq pC2 y) => false,
+	(synEq pC2 z) => false,
+	(synEq pC2 pV1) => false,
+	(synEq pC2 pV2) => false,
+	(synEq pC2 pC1) => false,
+
+	(I (push (update X N emp)   REST) ENV) =>
+	(I (push (cons (mi X N) emp) REST) ENV),
+
+    	(I (push (update X N (cons (mi Y M) ENV1))   REST) ENV) =>
+    	(I (push (synEq X Y) (push (update X N (cons (mi Y M) ENV1)) REST)) ENV),
+
+    	(I (push true (push (update X N (cons (mi Y M) ENV1))   REST)) ENV) =>
+    	(I (push (cons (mi X N) ENV1) REST) ENV),
+
+    	(I (push false (push (update X N (cons (mi Y M) ENV1))   REST)) ENV) =>
+    	(I (push (update X N ENV1) (push (updateh (mi Y M)) REST)) ENV),
+
+    	(I (push ENV1 (push (updateh (mi Y M))   REST)) ENV) =>
+    	(I (push (cons (mi Y M) ENV1) REST) ENV),
+
+	(I (push (lookup X (cons (mi Y M) ENV1))   REST) ENV) =>
+	(I (push (synEq X Y) (push (lookuph X M ENV1) REST)) ENV),
+
+	(I (push true (push (lookuph X M ENV1)   REST)) ENV) =>
+	(I (push M                                REST)  ENV),
+
+	(I (push false (push (lookuph X M ENV1)  REST)) ENV) =>
+	(I (push (lookup X ENV1)                  REST)  ENV),
+
+ 	(I (push X              REST) ENV) =>
+ 	(I (push (lookup X ENV) REST) ENV),
+
+	(I (push (pred N)            REST) ENV) =>
+	(I (push (mminus N 1)    REST) ENV),
+
+	(I (push (pred NVAE)       REST)  ENV) =>
+	(I (push NVAE (push predh REST)) ENV),
+
+	(I (push N (push predh REST)) ENV) =>
+	(I (push (pred N)       REST)  ENV),
+
+	(I (push (succ N)           REST) ENV) =>
+	(I (push (mplus N 1)    REST) ENV),
+
+	(I (push (succ NVAE)       REST)  ENV) =>
+	(I (push NVAE (push succh REST)) ENV),
+
+	(I (push N (push succh REST)) ENV) =>
+	(I (push (succ N)       REST)  ENV),
+
+	(I (push (assign X N)                      REST) ENV) =>
+        (I (push (update X N ENV) (push updateEnv REST)) emp),
+
+        (I (push ENV  (push updateEnv REST)) emp) =>
+	(I (push skip                 REST) ENV),
+    
+ 	(I (push (assign X NVAE)       REST)  ENV) =>
+ 	(I (push NVAE (push (assignh X) REST)) ENV),
+
+     	(I (push N (push (assignh X) REST)) ENV) =>
+     	(I (push (assign X N)        REST)  ENV),
+
+// sequential composition
+	(I (push (seq S1 S2) REST)  ENV) =>
+	(I (push S1 (push S2 REST)) ENV),
+
+	(I (push skip REST) ENV) =>
+	(I            REST  ENV),
+
+// conditional statement
+
+	(I (push (ite NVBE S1 S2)       REST)  ENV) =>
+	(I (push NVBE (push (iteh S1 S2) REST)) ENV),
+
+	(I (push B (push (iteh S1 S2) REST)) ENV) =>
+	(I (push (ite B S1 S2)       REST)  ENV),
+
+	(I (push (ite true S1 S2) REST) ENV) =>
+	(I (push S1                REST) ENV),
+
+ 	(I (push (ite false S1 S2) REST) ENV) =>
+ 	(I (push S2                 REST) ENV),
+
+// while statement
+ 	(I (push (while BE S)                        REST) ENV) =>
+ 	(I (push (ite BE (seq S (while BE S)) skip) REST) ENV),
+
+// addition operator
+ 	(I (push (plus N M)     REST) ENV) =>
+ 	(I (push (mplus N M)    REST) ENV),
+
+	(I (push (plus NVAE1 AE2)        REST)  ENV) =>
+	(I (push NVAE1 (push (plushl AE2) REST)) ENV),
+  
+ 	(I (push N (push (plushl AE2) REST)) ENV) =>
+ 	(I (push (plus N AE2)        REST)  ENV),
+
+ 	(I (push (plus N NVAE2)        REST)  ENV) =>
+ 	(I (push NVAE2 (push (plushr N) REST)) ENV),
+
+ 	(I (push M (push (plushr N) REST)) ENV) =>
+ 	(I (push (plus N M)        REST)  ENV),
+
+// less than or equal to operator2
+
+ 	(I (push (le N M)  REST) ENV) =>
+ 	(I (push (mle N M) REST) ENV),
+
+ 	(I (push (le NVAE1 AE2)        REST)  ENV) =>
+ 	(I (push NVAE1 (push (lehl AE2) REST)) ENV),
+
+ 	(I (push N (push (lehl AE2) REST)) ENV) =>
+ 	(I (push (le N AE2)        REST)  ENV),
+
+ 	(I (push (le N NVAE2)        REST)  ENV) =>
+ 	(I (push NVAE2 (push (lehr N) REST)) ENV),
+  
+ 	(I (push M (push (lehr N) REST)) ENV) =>
+ 	(I (push (le N M)       REST)  ENV),
+
+// symbolic variables statements and expressions
+   	(I (push pE1 REST) ENV) =>
+	(I (push (iE1 pC2 pV2) REST) ENV),                // R[E1] = C2, V2
+
+	(I (push pS1 REST) ENV) =>
+	(I (push (update pC1 (iS1 pC1 pC2 pV1 pV2) ENV) (push updateEnv REST)) emp) // W[S1] = C1; R[S1] = C1, C2, V1, V2
+;
+
+// search to end with left hand side
+/*
+search [32, 32] in language :
+(I (push (seq (assign pV1 pE1)              // V1 := E1
+              (seq pS1                      // S1
+                   (assign pV2 pE1)))       // V2 := E2
+	      done)
+         emp);
+*/
+
+// search to end with right hand side
+/*
+search [35, 35] in language :
+        (I (push (seq (assign pV1 pE1)      // V1 := E1
+                   (seq pS1                 // S1
+ 		      (assign pV2 pV1)))    // V2 := V1
+ 	      done)
+          emp);
+*/
+
+show-equivalent [69, 2] in language and language :
+   (pair (I (push (seq (assign pV1 pE1)
+                  (seq pS1
+ 		       (assign pV2 pE1)))
+ 	     done)
+          emp)
+        (I (push (seq (assign pV1 pE1)
+                 (seq pS1
+		      (assign pV2 pV1)))
+ 	      done)
+          emp))
+with-base
+   (pair (I done ENV) (I done ENV));

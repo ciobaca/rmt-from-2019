@@ -1,0 +1,29 @@
+sorts Stmt, // a sort for statements
+      CompStack;
+
+signature
+	done : -> CompStack,
+	push : Stmt CompStack -> CompStack,
+
+	assign : -> Stmt,
+	skip : -> Stmt,
+	seq : Stmt Stmt -> Stmt;
+
+variables
+	B : Bool,
+	S : Stmt,
+	S1 : Stmt,
+	S2 : Stmt,
+	REST : CompStack;
+
+rewrite-system language
+   assign => skip,
+   (push (seq S1 S2) REST) => (push S1 (push S2 REST)),
+   (push skip REST) => REST;
+
+constrained-rewrite-system circularities
+  assign => skip,
+
+  (push (seq skip (seq skip assign)) done) => (push skip (push skip done));
+
+prove [103,3] in language : circularities;

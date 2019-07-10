@@ -1,0 +1,309 @@
+/*
+smt-prelude
+"(declare-fun uifun (Int Int) Int)
+ (declare-datatypes () ((Var varX varY varZ varC1 varC2 varV1 varV2)))
+ (declare-datatypes () ((VarF (fvar 0) (fvar 1) (fvar 2) (fvar 3))))
+ (define-fun sumUpTo ((n Int)) Int
+    (div (* n (+ n 1)) 2)
+ )
+ (define-fun sum ((a Int) (b Int)) Int
+   (- (sumUpTo b) (sumUpTo (- a 1))))
+"
+*/
+
+sorts IntP,
+      BoolP,
+      Var,
+      AExp,
+      BExp,
+      NonValAExp,
+      NonValBExp,
+      Stmt,
+      Code,
+      CompStack,
+      Map / "(Array Int Int)",
+      CfgI,
+      State,
+      
+      VarF,
+      ExpF,
+      NonValExpF,
+      ValExpF,
+      CfgF
+    ;
+
+builtins sum : Int Int -> Int, sumUpTo : Int -> Int, muifun : Int Int -> Int, iS1 : Int Int Int Int -> Int, iE1 : Int Int -> Int;
+
+// after declaring all sorts,
+// we must declare all subsort relations
+subsort Int < IntP;
+subsort IntP < AExp;
+subsort Var < NonValAExp;
+subsort NonValAExp < AExp;
+subsort NonValBExp < BExp;
+subsort AExp BExp Stmt < Code;
+subsort Bool < BoolP;
+subsort BoolP < BExp;
+subsort AExp < Stmt;
+subsort BExp < Stmt;
+
+subsort Bool < ValExpF;
+subsort Int < ValExpF;
+subsort VarF < ExpF;
+subsort ValExpF < ExpF;
+subsort NonValExpF < ExpF;
+
+
+/* next we must declare all function symbols */
+signature
+	pair : CfgI CfgF -> State,
+
+	mapequals : Map Map -> Bool / "=",
+
+	vfequals : VarF VarF -> Bool / "=",
+
+	var : Int -> Var,
+	fvar : Int -> VarF,
+
+	// functional language
+	miu : VarF ExpF -> NonValExpF,
+	lam : VarF ExpF -> ValExpF,
+
+	fplus : ExpF ExpF -> NonValExpF,
+	fminus : ExpF ExpF -> NonValExpF,
+	fle : ExpF ExpF -> NonValExpF,
+	fless : ExpF ExpF -> NonValExpF,
+	fite : ExpF ExpF ExpF -> NonValExpF,
+//	flet : Var ExpF ExpF -> NonValExpF,
+
+	app : ExpF ExpF -> NonValExpF,
+
+	F : ExpF -> CfgF,
+
+	contextexp : ExpF -> ExpF,
+//	contextexp : ValExpF -> ValExpF,
+//	contextexp : NonValExpF -> NonValExpF,
+	
+	pS1 : -> Stmt,
+	pE1 : -> NonValAExp,
+
+	// helper functions
+	synEq : Var Var -> Bool / "=",
+
+	update : Map Int Int -> Map / "store",
+	lookup  : Map Int -> Int / "select",
+
+	// arithmetic and boolean expressions
+	plus : AExp AExp -> NonValAExp,
+	plushl : AExp -> AExp,
+    	plushr : AExp -> AExp,
+
+	// uninterpreted function
+	uifun : AExp AExp -> NonValAExp,
+	uifunhl : AExp -> AExp,
+	uifunhr : AExp -> AExp,
+
+	minus : AExp AExp -> NonValAExp,
+	minushl : AExp -> AExp,
+    	minushr : AExp -> AExp,
+
+	pred : AExp -> NonValAExp,
+	predh : -> Stmt,
+
+	succ : AExp -> NonValAExp,
+	succh : -> Stmt,
+
+	le   : AExp AExp -> NonValBExp,
+    	lehl : AExp -> BExp,
+    	lehr : AExp -> BExp,
+
+	less   : AExp AExp -> NonValBExp,
+    	lesshl : AExp -> BExp,
+    	lesshr : AExp -> BExp,
+
+	not : BExp -> NonValBExp,
+	noth : -> Stmt,
+
+	// computation stack
+	done : -> CompStack,
+	push : Code CompStack -> CompStack,
+
+	// configuration
+	IC : CompStack Map -> CfgI,
+
+	// statements
+	assign : Var AExp -> Stmt,
+    	assignh : Var -> Stmt,
+
+	skip : -> Stmt,
+
+	seq : Stmt Stmt -> Stmt,
+
+	ite : BExp Stmt Stmt -> Stmt,
+	iteh : Stmt Stmt -> Stmt,
+
+	while : BExp Stmt -> Stmt,
+
+	for : Var AExp AExp Stmt -> Stmt,
+	forhl : Var AExp Stmt -> Stmt,
+	forhr : Var AExp Stmt -> Stmt;
+
+/* next we must declare all variables */
+variables
+	// necessary variables
+	X : Int,
+	Y : Int,
+	Z : Int,
+
+	N : Int,
+	SUM : Int,
+	I : Int,
+	J : Int,
+	M : Int,
+	PRIMM : Int,
+	PRIMMP : Int,
+	PRIMN : Int,
+ 	PRIMENV : Map,
+ 	PRIMENVP : Map,
+	MP : Int,
+
+	B : Bool,
+	BE : BExp,
+	BE1 : BExp,
+	BE2 : BExp,
+	AE : AExp,
+	AE1 : AExp,
+	AE2 : AExp,
+	NVAE : NonValAExp,
+	NVAE1 : NonValAExp,
+	NVAE2 : NonValAExp,
+	NVBE : NonValBExp,
+	NVBE1 : NonValBExp,
+	NVBE2 : NonValBExp,
+	S : Stmt,
+	S1 : Stmt,
+	S2 : Stmt,
+	S3 : Stmt,
+	S4 : Stmt,
+	REST : CompStack,
+	ENV : Map,
+	ENVP : Map,
+	ENV1 : Map,
+	ENV2 : Map,
+
+	FEXP : ExpF,
+	FEXP1 : ExpF,
+	FEXP2 : ExpF,
+	FEXP3 : ExpF,
+	FNV : NonValExpF,
+	VF : ValExpF;
+
+
+assert (_forallInt N
+         (mequals (sumUpTo N) (mdiv (mtimes N (mplus N 1)) 2)));
+
+assert (_forallInt X (_forallInt Y
+         (mequals (sum X Y) (mminus (sumUpTo Y) (sumUpTo (mminus X 1))))));
+
+
+define substitute : VarF ExpF ExpF -> ExpF by
+  (substitute (fvar X) FEXP I) => I,
+  (substitute (fvar X) FEXP B) => B,
+  (substitute (fvar X) FEXP (fvar X)) => FEXP,
+  (substitute (fvar X) FEXP (fvar Y)) /\ (bnot (mequals X Y)) => (fvar Y),
+
+  (substitute (fvar X) FEXP (fplus FEXP1 FEXP2)) => (fplus (substitute (fvar X) FEXP FEXP1) (substitute (fvar X) FEXP FEXP2)),
+  (substitute (fvar X) FEXP (fminus FEXP1 FEXP2)) => (fminus (substitute (fvar X) FEXP FEXP1) (substitute (fvar X) FEXP FEXP2)),
+  (substitute (fvar X) FEXP (fless FEXP1 FEXP2)) => (fless (substitute (fvar X) FEXP FEXP1) (substitute (fvar X) FEXP FEXP2)),
+  (substitute (fvar X) FEXP (fle FEXP1 FEXP2)) => (fle (substitute (fvar X) FEXP FEXP1) (substitute (fvar X) FEXP FEXP2)),
+  (substitute (fvar X) FEXP (fite FEXP1 FEXP2 FEXP3)) => (fite (substitute (fvar X) FEXP FEXP1) (substitute (fvar X) FEXP FEXP2) (substitute (fvar X) FEXP FEXP3)),
+
+  (substitute (fvar X) FEXP (app FEXP1 FEXP2)) => (app (substitute (fvar X) FEXP FEXP1) (substitute (fvar X) FEXP FEXP2)),
+
+  (substitute (fvar X) FEXP1 (lam (fvar X) FEXP)) => (lam (fvar X) FEXP),
+  (substitute (fvar X) FEXP1 (lam (fvar Y) FEXP)) /\ (bnot (mequals X Y)) => (lam (fvar Y) (substitute (fvar X) FEXP1 FEXP)),
+
+  (substitute (fvar X) FEXP1 (miu (fvar X) FEXP)) => (miu (fvar X) FEXP),
+  (substitute (fvar X) FEXP1 (miu (fvar Y) FEXP)) /\ (bnot (mequals X Y)) => (miu (fvar Y) (substitute (fvar X) FEXP1 FEXP))
+  ;  
+
+
+constrained-rewrite-system flanguage
+	(contextexp (fplus FNV FEXP)) => (fplus (contextexp FNV) FEXP),
+	(fplus (contextexp I) FEXP) => (contextexp (fplus I FEXP)),
+	(contextexp (fplus I FNV)) => (fplus I (contextexp FNV)),
+	(fplus I (contextexp J)) => (contextexp (fplus I J)),
+	(contextexp (fplus I J)) => (contextexp (mplus I J)),
+
+	(contextexp (fminus FNV FEXP)) => (fminus (contextexp FNV) FEXP),
+	(fminus (contextexp I) FEXP) => (contextexp (fminus I FEXP)),
+	(contextexp (fminus I FNV)) => (fminus I (contextexp FNV)),
+	(fminus I (contextexp J)) => (contextexp (fminus I J)),
+	(contextexp (fminus I J)) => (contextexp (mminus I J)),
+	
+	(contextexp (fless FNV FEXP)) => (fless (contextexp FNV) FEXP),
+	(fless (contextexp I) FEXP) => (contextexp (fless I FEXP)),
+	(contextexp (fless I FNV)) => (fless I (contextexp FNV)),
+	(fless I (contextexp J)) => (contextexp (fless I J)),
+	(contextexp (fless I J)) => (contextexp (mless I J)),
+	
+	(contextexp (fle FNV FEXP)) => (fle (contextexp FNV) FEXP),
+	(fle (contextexp I) FEXP) => (contextexp (fle I FEXP)),
+	(contextexp (fle I FNV)) => (fle I (contextexp FNV)),
+	(fle I (contextexp J)) => (contextexp (fle I J)),
+	(contextexp (fle I J)) => (contextexp (mle I J)),
+
+	(contextexp (fite FNV FEXP1 FEXP2)) => (fite (contextexp FNV) FEXP1 FEXP2),
+	(fite (contextexp B) FEXP1 FEXP2) => (contextexp (fite B FEXP1 FEXP2)),
+	(contextexp (fite true FEXP1 FEXP2)) => (contextexp FEXP1),
+	(contextexp (fite false FEXP1 FEXP2)) => (contextexp FEXP2),
+
+	(contextexp (app FNV FEXP)) => (app (contextexp FNV) FEXP),
+	(app (contextexp (lam (fvar X) FEXP1)) FEXP2) => (contextexp (app (lam (fvar X) FEXP1) FEXP2)),
+	(contextexp (app (lam (fvar X) FEXP1) FNV)) => (app (lam (fvar X) FEXP1) (contextexp FNV)),
+	(app (lam (fvar X) FEXP1) (contextexp VF)) => (contextexp (app (lam (fvar X) FEXP1) VF)),
+	(contextexp (app (lam (fvar X) FEXP1) VF)) => (contextexp (substitute (fvar X) VF FEXP1)),
+	
+	(contextexp (miu (fvar X) FEXP)) => (contextexp (substitute (fvar X) (miu (fvar X) FEXP) FEXP))
+;
+
+//definedsearch [1,20] (F (app (contextexp (substitute (fvar 0) 2 (lam (fvar 1) (fplus (fvar 0) (fvar 1))))) 1));
+
+show-simulation [100, partial] in flanguage and flanguage :
+   (pair
+
+   	(F (contextexp (fplus I (app (
+	miu (fvar 2) (
+		lam (fvar 0)
+			(fite (fle 0 (fvar 0))
+				(fplus (fvar 0) (app (fvar 2) (fminus (fvar 0) 1 )))
+				0
+			)
+		)
+	) N ) )))
+
+	(F (contextexp (app (app (
+	miu (fvar 2) (
+		lam (fvar 0) (lam (fvar 1)
+			(fite (fle 0 (fvar 0))
+				(app (app (fvar 2) (fminus (fvar 0) 1)) (fplus (fvar 1) (fvar 0)))
+				(fvar 1)
+			)
+		))
+	) N ) I )))
+
+	)
+ with-base
+     (pair (F (contextexp SUM)) (F (contextexp SUM)));
+
+
+/*
+show-simulation [100] in language and flanguage :
+   (pair (IC (push 
+		(seq (assign (var 0) 1)
+		    (seq (assign (var 1) 2)
+		        (assign (var 0) (plus (var 0) (var 1))))) done) ENV)
+	(F (contextexp (app (app (lam (fvar 0) (lam (fvar 1) (fplus (fvar 0) (fvar 1)))) 2) 1))))
+ with-base
+     (pair (IC done ENV) (F (contextexp SUM))) /\ (mequals (lookup ENV 0) SUM);
+*/

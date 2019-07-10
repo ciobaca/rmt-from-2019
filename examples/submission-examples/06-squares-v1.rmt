@@ -1,0 +1,74 @@
+/*
+
+This example illustrates a rewrite system that computes the
+of the squares of the first n non-zero natural numbers without
+performing multiplication.
+
+Run the example with
+
+./rmt -v 0 < 06-squares-v1.rmt
+
+The expected output is for the proof to go through.
+
+*/
+sorts Int / "Int", Bool / "Bool", State;
+// subsort Int < State;
+
+signature mzero : -> Int / "0", mone : -> Int / "1", mtwo : -> Int / "2", mthree : -> Int / "3", msix : -> Int / "6",
+  mplus : Int Int->Int / "+", mminus : Int Int->Int / "-",
+  mtimes : Int Int->Int / "*", mdiv : Int Int->Int / "div",
+  mle : Int Int->Bool / "<=", mequals : Int Int->Bool / "=",
+  mgcd : Int Int -> Int / "gcd", mg : Int Int -> Bool / ">",
+  mmod : Int Int -> Int / "mod",
+
+  bequals : Bool Bool->Bool / "=", band : Bool Bool->Bool / "and",
+  bimplies : Bool Bool->Bool / "=>", bor : Bool Bool->Bool / "or",
+  bnot : Bool->Bool / "not", true : ->Bool / "true", false : ->Bool / "false",
+
+  init : Int -> State, loop : Int Int -> State, done : Int -> State, loop2 : Int Int Int Int -> State;
+
+variables S : Int, N : Int, I : Int, J : Int, X : Int, Y : Int, Z : Int, T : Int, A : Int, B : Int,
+ C : Int, D : Int, BB : Bool;
+
+rewrite-system simplifications
+  bnot(false) => true, bnot(true) => false, bnot(bnot(BB)) => BB,
+  band(false, BB) => false, band(true, BB) => BB, band(BB, false) => false,
+  band(BB, true) => BB, bimplies(true, BB) => BB, bimplies(false, BB) => true,
+  bor(false, BB) => BB, bor(true, BB) => true, bor(BB, false) => BB,
+  bor(BB, true) => true, mequals(N, N) => true, bequals(BB, BB) => true,
+  bequals(true, BB) => BB,bequals(false, BB) => bnot(BB), bequals(BB, true) => BB,
+  bequals(BB, false) => bnot(BB), band(BB, BB) => BB, bor(BB, BB) => BB;
+
+constrained-rewrite-system multbyadd
+  init(X) => loop(mzero, X),
+
+  loop(S, Y) /\ bnot(mle(mone, Y)) => done(S),
+
+  loop(S, Y) /\ mle(mone, Y) =>
+  loop2(S, Y, Y, mzero),
+
+// loop2 simulates Y * Y by repeated additions
+  loop2(S, Y, X, T) /\ mle(mone, X) => loop2(S, Y, mminus(X, mone), mplus(T, Y)),
+
+  loop2(S, Y, X, T) /\ bnot(mle(mone, X)) => loop(mplus(S, T), mminus(Y, mone));
+
+constrained-rewrite-system circ
+  init(Y) /\ mle(mzero, Y) =>
+
+  done(mdiv(mtimes(Y, mtimes(mplus(Y, mone), mplus(mtimes(Y, mtwo),
+mone))),msix)),
+
+
+  loop2(S, Y, X, T) /\ band(mle(mone, Y), mle(mone, X)) =>
+
+  done(mplus(mplus(S, mplus(T, mtimes(X, mplus(mminus(Y,mone), mone)))),
+  mdiv(mtimes(mminus(Y,mone),mtimes(mplus(mminus(Y,mone), mone), mplus(mtimes(mminus(Y,mone), mtwo),
+  mone))),msix))),
+
+
+  loop(S, Y) /\ mle(mone, Y) =>
+  
+  done(mplus(S, mdiv(mtimes(Y,mtimes(mplus(Y, mone), mplus(mtimes(Y,
+  mtwo), mone))),msix)));
+
+prove [5,2] in multbyadd : circ;

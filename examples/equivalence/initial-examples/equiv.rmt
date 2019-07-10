@@ -1,0 +1,171 @@
+smt-prelude "
+(define-fun sumUpTo ((n Int)) Int
+  (div (* n (+ n 1)) 2)
+)
+(define-fun sum ((a Int) (b Int)) Int
+  (- (sumUpTo b) (sumUpTo (- a 1))))
+"
+
+/* any file begins with the declaration of all sorts used */
+sorts Left,
+      Right,
+      State;
+
+// after declaring all sorts,
+// we must declare all subsort relations
+//subsort Int < AExp;
+//subsort Var < NonValAExp;
+//subsort NonValAExp < AExp;
+//subsort NonValBExp < BExp;
+//subsort AExp BExp Stmt < Code;
+//subsort Bool < BExp;
+
+/* next we must declare all function symbols */
+signature
+	// states
+	leftInit : Int Int -> Left,
+	leftLoop : Int Int Bool -> Left,
+	leftDone : Int -> Left,
+
+	rightInit : Int Int Int -> Right,
+	rightLoop : Int Int Int Bool -> Right,
+	rightDone : Int -> Right,
+
+	pair : Left Right -> State,
+	ok : -> State,
+
+	// interpreted integers and booleans
+	0 : -> Int / "0",
+	1 : -> Int / "1",
+	2 : -> Int / "2",
+	mplus : Int Int -> Int / "+",
+	mminus : Int Int -> Int / "-",
+	mtimes : Int Int -> Int / "*",
+	mdiv : Int Int -> Int / "div",
+	mle : Int Int -> Bool / "<=",
+	mequals : Int Int -> Bool / "=",
+	msum : Int Int -> Bool / "sum",
+
+	bequals : Bool Bool -> Bool / "=",
+	band : Bool Bool -> Bool / "and",
+	bimplies : Bool Bool -> Bool / "=>",
+	bor : Bool Bool -> Bool / "or",
+	bnot : Bool -> Bool / "not",
+
+	true : -> Bool / "true",
+	false : -> Bool / "false";
+
+/* next we must declare all variables */
+variables
+	B : Bool,
+	S : Int,
+	SP : Int,
+	N : Int,
+	NP : Int,
+	M : Int,
+	I : Int,
+	IP : Int,
+	J : Int;
+
+constrained-rewrite-system left
+	(leftInit S I) =>
+	(leftLoop S I (mle 1 I)),
+
+	(leftLoop S I true) =>
+	(leftInit (mplus S I) (mminus I 1)),
+
+	(leftLoop S I false) =>
+	(leftDone S);
+
+constrained-rewrite-system right
+	(rightInit S I N) =>
+	(rightLoop S I N (mle I N)),
+
+	(rightLoop S I N true) =>
+	(rightInit (mplus S I) (mplus I 1) N),
+
+	(rightLoop S I N false) =>
+	(rightDone S);
+
+constrained-rewrite-system both
+	(leftInit S I) =>
+	(leftLoop S I (mle 1 I)),
+
+	(leftLoop S I true) =>
+	(leftInit (mplus S I) (mminus I 1)),
+
+	(leftLoop S I false) =>
+	(leftDone S),
+
+	// cool
+	(rightInit S I N) =>
+	(rightLoop S I N (mle I N)),
+
+	(rightLoop S I N true) =>
+	(rightInit (mplus S I) (mplus I 1) N),
+
+	(rightLoop S I N false) =>
+	(rightDone S),
+	      
+	// helper for equivalence checking
+	(pair (leftDone S) (rightDone S)) =>
+	ok;
+
+// constrained-rewrite-system circularitiesLeft
+// 	(leftInit 0 N) /\ (mle 0 N) =>
+// 	(leftDone (mdiv (mtimes N (mplus N 1)) 2)),
+
+// 	(leftInit S I) /\ (mle 0 I) =>
+// 	(leftDone (mplus S (mdiv (mtimes I (mplus I 1)) 2)));
+
+// constrained-rewrite-system circularitiesRight
+// 	(rightInit 0 0 N) /\ (mle 0 N) =>
+// 	(rightDone (mdiv (mtimes N (mplus N 1)) 2)),
+
+// 	(rightInit S I N) /\ (mle I N) =>
+// 	(rightDone (mplus S (mdiv (mtimes (mplus (mminus N I) 1) (mplus I N)) 2)));
+
+constrained-rewrite-system equivCirc
+	(pair (leftInit 0 N) (rightInit 0 0 N)) /\ (mle 0 N) =>
+	ok,
+
+	(pair (leftInit S J) (rightInit SP I N)) /\
+	(band 
+	 (band 
+	  (mle 0 I)
+	  (mle 0 J)
+	 )
+	 (band 
+	  (band 
+ 	   (mequals S (mdiv (mtimes J (mplus J 1)) 2))
+	   (mequals SP (mdiv (mtimes (mplus (mminus N I) 1) (mplus I N)) 2))
+	  )
+	  (mequals (mplus I J) (mplus N 1))
+	 )
+	) =>
+	ok;
+
+constrained-rewrite-system myrsCirc
+        (pair (leftInit S I)
+             (rightInit SP IP NP))
+        /\
+        (band (band (mequals S (mdiv (mtimes (mminus NP IP) (mplus (mplus IP NP) 1)) 2))
+                  (mequals SP (mdiv (mtimes IP (mminus IP 1)) 2)))
+                  (mequals (mplus I IP) (mplus NP 1)))
+		  => ok;
+
+constrained-rewrite-system myrsDone
+	(pair (leftDone S) (rightDone S)) => ok;
+
+show-equivalent [7, 2] in left and right :
+
+  (pair (leftInit 0 N) (rightInit 0 0 N)) /\ (mle 0 N),
+
+  (pair (leftInit S I) (rightInit SP IP NP)) /\
+        (band (band (band (mequals S (msum (mplus (mminus NP IP) 1) NP))
+                  (mequals SP (msum 0 (mminus IP 1))))
+                  (mequals (mplus I IP) NP)) (mle 0 NP))
+
+with-base
+
+  (pair (leftDone S) (rightDone S));

@@ -1,0 +1,56 @@
+/*
+  Example for the Zune Bug
+
+  This file contains a proposed fix for the Zune bug:
+
+year = ORIGINYEAR; // = 1980 
+
+while (days > 365)
+{
+    if (IsLeapYear(year))
+    {
+        if (days > 366)
+        {
+            days -= 366;
+            year += 1;
+        } else {
+	  break;
+	}
+    }
+    else
+    {
+        days -= 365;
+        year += 1;
+    }
+}
+
+  We show that the fix makes the system totally correct.
+
+Run with:
+> rmt[.exe] < 2.3_zune_fixed.rmt
+Expected output:
+... Circularity #1 proved. ...
+*/
+sorts State, nState;
+
+signature
+  mtsf:->Int/"365", mtss:->Int/"366",
+  init:Int->State, loop:Int Int->State, done:Int->State,
+  protect:State Int->nState;
+
+variables B:Bool, S:Int, N:Int, I:Int, X:Int, M:Int, VN:Int, VI:Int, D:Int, Y:Int;
+
+constrained-rewrite-system zune_fixed
+  (loop D Y) /\ (mle D mtsf) => (done Y),
+  (loop D Y) /\ (band (bnot (mle D mtsf)) (band (mequals (mmod Y 4) 0) (bnot (mle D mtss)))) => (loop (mminus D mtss) (mplus Y 1)),
+  (loop D Y) /\ (band (bnot (mle D mtsf)) (band (mequals (mmod Y 4) 0) (mle D  mtss))) => (done Y),
+  (loop D Y) /\ (band (bnot (mle D mtsf)) (bnot (mequals (mmod Y 4) 0))) => (loop (mminus D mtsf) (mplus Y 1));
+
+constrained-rewrite-system proof_obligation
+  (loop D Y) /\ (mle 0 D) => (done N);
+
+instrument zune_fixed zune_protected State nState protect;
+cinstrument proof_obligation proof_obligation_protected State nState protect (mplus D 2);
+prove [20, 2] in zune_protected : proof_obligation_protected;
+
+// succeeds
